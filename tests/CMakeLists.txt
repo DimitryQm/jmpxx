@@ -30,6 +30,12 @@ foreach(probe size alloc destructors semantics levels policies diagnostics inter
   add_test(NAME probe.${probe} COMMAND jmpxx-verify ${probe})
 endforeach()
 
+# The no-alloc gate's teeth: an injected heap allocation on the measured path must
+# be observed by the hooked allocator and fail the probe, so the gate is proven to
+# catch an allocating path rather than passing because nothing exercises it.
+add_test(NAME probe.alloc.teeth COMMAND jmpxx-verify alloc --inject-alloc)
+set_tests_properties(probe.alloc.teeth PROPERTIES WILL_FAIL TRUE)
+
 # Reflection forward layer, hand-written fallback path. Building the harness and this
 # tier on a C++20 toolchain exercises the fallback that derives enum names, the failure
 # set, and the enum-keyed error domain by parsing the compiler signature; the reflection
@@ -270,6 +276,16 @@ if(JMPXX_GXX13 AND JMPXX_PYTHON3 AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_test(NAME amalgamation COMMAND bash
     ${CMAKE_SOURCE_DIR}/tests/scripts/amalgamation_check.sh
     ${CMAKE_SOURCE_DIR} ${JMPXX_GXX13})
+endif()
+
+# The acceptance sweep's own teeth. acceptance.py aggregates the tiers and gates into
+# one release verdict; its --self-test proves the verdict logic fails a failed test
+# and a gate that has no inverted self-test. Pure logic, no nested CTest, so it runs
+# here as a tier; the full sweep is run by hand or in continuous integration against a
+# built tree, never as a test, to avoid recursion.
+if(JMPXX_PYTHON3)
+  add_test(NAME acceptance.self_test COMMAND
+    ${JMPXX_PYTHON3} ${CMAKE_SOURCE_DIR}/verify/acceptance.py --self-test)
 endif()
 
 # Compile-cost gate: the template-instantiation count, the deterministic compile-cost

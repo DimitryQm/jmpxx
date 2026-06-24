@@ -90,10 +90,17 @@ if(JMPXX_INSTALL)
   configure_package_config_file(cmake/jmpxxConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/jmpxxConfig.cmake
     INSTALL_DESTINATION ${JMPXX_CMAKE_DIR})
+  # SameMinorVersion, not SameMajorVersion, while the project is 0.x. Under semantic
+  # versioning a 0.x minor bump may break the surface, but SameMajorVersion compares
+  # only the major component, which is always 0 here, so it would accept any 0.y.z for
+  # a find_package(jmpxx 0.1) request. SameMinorVersion requires the major and minor to
+  # match, so 0.1.x is accepted and 0.2.0 is not, which is the honest contract for the
+  # frozen-layout subset. This moves to SameMajorVersion at 1.0.0. ARCH_INDEPENDENT
+  # because a header-only package carries no architecture.
   write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/jmpxxConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
+    COMPATIBILITY SameMinorVersion
     ARCH_INDEPENDENT)
   install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/jmpxxConfig.cmake

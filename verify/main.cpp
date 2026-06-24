@@ -144,11 +144,23 @@ int probe_size(Fmt fmt) {
 }
 
 // alloc: construction, inspection, extraction, assignment, and propagation over
-// trivial payloads perform no heap allocation.
-int probe_alloc(Fmt fmt) {
+// trivial payloads perform no heap allocation. The gate has teeth: --inject-alloc
+// performs one heap allocation inside the measured region, which the hooked
+// allocator must observe, so the gate fails. Without it the gate could pass while
+// never exercising an allocating path.
+int probe_alloc(Fmt fmt, const std::vector<std::string>& args) {
+  bool inject = false;
+  for (const std::string& a : args)
+    if (a == "--inject-alloc") inject = true;
   volatile long long sink = 0;
   g_allocs = 0;
   g_count = true;
+  if (inject) {
+    // A deliberate allocation on the measured path, the known-bad input.
+    volatile int* leak = new int(7);
+    sink += *leak;
+    delete leak;
+  }
   for (int i = 0; i < 1000; ++i) {
     result<int, error> a = i;
     result<int, error> b = fail(error(i));
@@ -1375,7 +1387,7 @@ int main(int argc, char** argv) {
   }
 
   if (cmd == "size") return probe_size(fmt);
-  if (cmd == "alloc") return probe_alloc(fmt);
+  if (cmd == "alloc") return probe_alloc(fmt, rest);
   if (cmd == "destructors") return probe_destructors(fmt);
   if (cmd == "semantics") return probe_semantics(fmt);
   if (cmd == "levels") return probe_levels(fmt);
@@ -1393,7 +1405,7 @@ int main(int argc, char** argv) {
   if (cmd == "all") {
     int rc = 0;
     rc |= probe_size(fmt);
-    rc |= probe_alloc(fmt);
+    rc |= probe_alloc(fmt, {});
     rc |= probe_destructors(fmt);
     rc |= probe_semantics(fmt);
     rc |= probe_levels(fmt);

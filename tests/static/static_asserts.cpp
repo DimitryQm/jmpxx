@@ -8,6 +8,13 @@
 
 using namespace jmpxx;
 
+// The version surface. The combined integer follows major*10000+minor*100+patch and
+// the string derives from the same components, so a consumer may gate on either and
+// the two cannot drift.
+static_assert(JMPXX_VERSION == JMPXX_VERSION_MAJOR * 10000 +
+                                   JMPXX_VERSION_MINOR * 100 + JMPXX_VERSION_PATCH);
+static_assert(sizeof(JMPXX_VERSION_STRING) >= sizeof("0.0.0"));
+
 // ABI freeze, checked on every cell the static tier builds on. The minimal error's
 // size, alignment, and public field offsets are part of the layout the v0.1.0 ABI
 // promise holds fixed within the major version (docs/reference/abi.md); a reorder or

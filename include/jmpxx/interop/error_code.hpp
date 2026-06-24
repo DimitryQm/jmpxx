@@ -1,39 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Bridge between jmpxx errors and the standard <system_error> facility,
-// std::error_code.
+// std::error_code. Two directions: a foreign std::error_code is carried verbatim into a
+// result<T, std::error_code> (the transport is generic over its error type, so the
+// category and value are preserved exactly), and a jmpxx::error is exposed as a
+// std::error_code in a jmpxx-owned category that round-trips losslessly through
+// to_error_code / make_error_code / from_error_code. The directions and their fidelity,
+// including the lossy case of recovering a foreign category, are in
+// docs/reference/interop.md.
 //
-// Two directions serve a codebase that already speaks std::error_code:
+// This is a hosted extension: <system_error> is outside the freestanding subset, so this
+// header is never reached from jmpxx/core.hpp.
 //
-//   Adopt a foreign error_code: a function returning std::error_code, or
-//   std::expected<T, std::error_code>, is carried into jmpxx without loss as a
-//   result<T, std::error_code>, because the transport is generic over its error
-//   type. The error_code travels verbatim, so its category identity and value are
-//   preserved exactly. jmpxx::fail(ec) builds the failure, and the std::expected
-//   form bridges through jmpxx/interop/expected.hpp. This is the lossless path for
-//   an error_code that originates outside jmpxx, and it needs nothing from this
-//   header beyond the documentation of it.
-//
-//   Expose a jmpxx error: a jmpxx::error is presented to error_code-based code as
-//   a std::error_code in a jmpxx-owned category. The error's code becomes the
-//   error_code value and the error's domain selects the category, so the pair
-//   round-trips losslessly back to the same jmpxx::error. to_error_code performs
-//   the conversion, make_error_code is the same operation under the name argument-
-//   dependent lookup expects, and from_error_code recovers the jmpxx::error from a
-//   code in a jmpxx category.
-//
-// This is a hosted extension. <system_error> is not part of the freestanding
-// subset, so this header is never reached from jmpxx/core.hpp and is not usable in
-// a freestanding build; a freestanding consumer that needs error_code interop does
-// not have <system_error> to interoperate with in the first place.
-//
-// Category identity caveat: a std::error_category is identified by the address of
-// its singleton. The jmpxx categories below are held in one process-wide table, so
-// within a single binary two conversions of the same jmpxx error compare equal.
-// Across a shared-library boundary built with hidden visibility, a category can be
-// duplicated, the same hazard that affects std::error_category and typeid across
-// modules; a program that compares jmpxx-derived error_codes across such a boundary
-// should compare on (value, domain) recovered through from_error_code rather than
-// on category identity.
+// Category identity caveat: a std::error_category is identified by the address of its
+// singleton. The jmpxx categories below are held in one process-wide table, so within a
+// single binary two conversions of the same error compare equal. Across a shared-library
+// boundary built with hidden visibility a category can be duplicated, the same hazard
+// that affects std::error_category and typeid across modules; compare on (value, domain)
+// recovered through from_error_code rather than on category identity across such a
+// boundary.
 #ifndef JMPXX_INTEROP_ERROR_CODE_HPP
 #define JMPXX_INTEROP_ERROR_CODE_HPP
 

@@ -7,18 +7,14 @@
 // portable core path reaches this header; a consumer compiles it only by opting
 // into the arm through jmpxx/unwind.hpp.
 //
-// The arm drives the platform forced-unwind facility so that a failure ejected deep in a
-// call chain returns to a registered landing boundary while the platform unwinder runs
-// the destructor of every automatic object on the path. The intermediate frames carry no
-// propagation construct in their source, at the cost of requiring unwind cleanup tables.
-// See jmpxx/unwind.hpp for the precondition and the caveats.
-//
-// Three backends are selected by target, none on a default path. The Itanium and EHABI
-// backend drives _Unwind_ForcedUnwind through libgcc or libunwind on GCC and Clang, which
-// covers Linux, macOS, the BSDs, and MinGW. The MSVC backend drives an unwinding longjmp.
-// The WebAssembly backend throws a typed signal the virtual machine unwinds, because
-// WebAssembly has no forced-unwind primitive. The differences this forces on WebAssembly
-// are recorded at JMPXX_UNWIND_BACKEND_WASM below and in the reference.
+// The arm drives the platform forced-unwind facility so a failure ejected deep in a
+// call chain returns to a registered landing while the unwinder runs every destructor
+// on the path, at the cost of requiring unwind cleanup tables. One of three backends is
+// selected by target, none on a default path: Itanium and EHABI forced unwind on GCC and
+// Clang, an unwinding longjmp on MSVC, and a typed throw the virtual machine unwinds on
+// WebAssembly. The per-ABI guarantees, the WebAssembly divergences, and the precondition
+// are in docs/reference/unwind.md; this file carries the rationale at each construct that
+// the reference does not.
 #ifndef JMPXX_UNWIND_BACKEND_HPP
 #define JMPXX_UNWIND_BACKEND_HPP
 
@@ -34,13 +30,10 @@
 // available; all are 0 on a target with no supported backend, where the public API
 // refuses use with a stated precondition rather than silently doing nothing.
 #if JMPXX_ARCH_WASM
-// WebAssembly has no forced-unwind primitive. The escape is a typed throw the virtual
-// machine unwinds, and the landing is a catch of a private signal type. Two guarantees
-// therefore differ from the library-driven ABIs. The escape is an ordinary catchable
-// exception, so a non-typed catch-all on the path can intercept it, because the
-// _UA_FORCE_UNWIND uncatchable-to-typed-handlers property does not exist on the VM. The
-// sad-path cost is whatever the engine charges for a throw rather than a library-bounded
-// walk.
+// WebAssembly has no forced-unwind primitive, so the escape is a typed throw the virtual
+// machine unwinds and the landing catches a private signal type. The escape is therefore
+// an ordinary catchable exception, which diverges the catch-all and sad-path guarantees
+// from the library-driven ABIs; docs/reference/unwind.md states the divergence.
 #define JMPXX_UNWIND_BACKEND_WASM 1
 #define JMPXX_UNWIND_BACKEND_ITANIUM 0
 #define JMPXX_UNWIND_BACKEND_SEH 0

@@ -1,30 +1,27 @@
 // SPDX-License-Identifier: MIT
-// The rich default policy and the debug-only diagnostic layer.
+// The rich default policy (rich_error) and the debug-only diagnostic layer.
 //
-// rich_error is the application-facing error representation. It carries the same
-// in-band code and domain as the minimal error, and in a debug build it also tags
-// the failure with a handle into a per-thread out-of-band store that holds the
-// failure's origin and the causal chain it accumulates as it propagates. In a
-// release build the handle, the store, and every diagnostic facility are compiled
-// out: rich_error becomes layout- and codegen-identical to the minimal error, so
-// the application developer who writes the rich policy pays nothing in release that
-// the embedded developer who writes the minimal policy avoids. That identity is the
-// dual-personality guarantee, and it is proven by the release codegen diff and the
-// release size check, not asserted here.
+// rich_error carries the same in-band code and domain as the minimal error; in a debug
+// build it also tags the failure with a handle into a per-thread out-of-band store
+// holding the origin and the causal chain, and in a release build it compiles down to
+// exactly the minimal error. That release identity is the dual-personality guarantee,
+// proven by the release codegen diff, not asserted here. The debug and release
+// behavior, the lifetime rules, and the concurrency contract are in
+// docs/reference/diagnostics.md.
 //
-// This is a hosted extension. Including jmpxx/core.hpp never pulls it in, and it is
-// selected by policy at the error type, with no change at the propagation call
-// sites the minimal policy already uses. The <source_location> include and the
-// origin-capturing machinery exist only under JMPXX_DIAGNOSTICS_ENABLED, because a
-// source location materializes its file and function strings into the binary even
-// where the value is unused, and the only airtight way to keep release free of them
-// is to not name source_location there at all.
+// This is a hosted extension: jmpxx/core.hpp never pulls it in, and it is selected by
+// policy at the error type with no change at the call sites. <source_location> and the
+// origin-capturing machinery are named only under JMPXX_DIAGNOSTICS_ENABLED, because a
+// source location materializes its file and function strings into the binary even where
+// the value is unused, so the only airtight way to keep release free of them is to not
+// name source_location there at all.
 #ifndef JMPXX_DIAGNOSTICS_HPP
 #define JMPXX_DIAGNOSTICS_HPP
 
-#include "jmpxx/core/config.hpp"
-#include "jmpxx/core/diagnostic_hook.hpp"
-#include "jmpxx/core/error.hpp"
+// The full minimal core, so the rich policy is usable from this header alone:
+// result, fail, the propagation macros, the minimal error, and the hop hook the
+// rich overload below specializes.
+#include "jmpxx/core.hpp"
 
 #include <cstdint>
 #include <cstdio>

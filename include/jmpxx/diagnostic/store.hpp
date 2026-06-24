@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: MIT
-// The out-of-band diagnostic store.
-//
-// A failure's origin and the causal chain it accumulates are held here, beside the
-// in-flight failure rather than inside the transport, so the transport stays narrow
-// and intermediate frames never widen to carry diagnostic context. The store is
-// per-thread, so concurrent failures on different threads never touch the same
-// memory and there is no data race to synchronize against. It is a fixed-capacity
-// arena, so it allocates nothing on any path; a failure deeper than the bound, or
-// one beyond the in-flight bound, is recorded as truncated rather than growing the
-// arena. The arena is a function-local thread_local, so it is lazily and
-// thread-safely initialized on first use and is safe when first touched during
-// dynamic initialization before main.
+// The out-of-band diagnostic store: a failure's origin and the causal chain it
+// accumulates live here, beside the in-flight failure rather than inside the transport,
+// so the transport stays narrow and intermediate frames never widen to carry context.
+// It is a per-thread, fixed-capacity arena, which makes it race-free and allocation-free,
+// and a function-local thread_local, which makes it safe when first touched during
+// dynamic initialization before main. The capacity bounds and the truncation-on-overflow
+// behavior are in docs/reference/diagnostics.md.
 //
 // This header is part of the debug-only diagnostic layer. It is compiled only when
 // JMPXX_DIAGNOSTICS_ENABLED is on and is reached only through jmpxx/diagnostics.hpp.

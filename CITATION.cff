@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: MIT
+cff-version: 1.2.0
+message: "If you use jmpxx, please cite it using these metadata."
+title: "jmpxx: non-local, RAII-correct, exception-free error propagation for C++20"
+abstract: >-
+  A header-only C++20 library for exception-free, RAII-correct, non-local error
+  propagation, built for code compiled with exceptions disabled, with zero overhead
+  over a hand-written branch proven by committed codegen.
+type: software
+authors:
+  - name: "DimitryQm"
+version: 0.1.0
+date-released: "2026-06-24"
+license: MIT
+repository-code: "https://github.com/DimitryQm/jmpxx"
+url: "https://github.com/DimitryQm/jmpxx"
+keywords:
+  - C++
+  - C++20
+  - error-handling
+  - exception-free
+  - RAII
+  - embedded

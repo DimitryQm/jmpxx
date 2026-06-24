@@ -53,9 +53,7 @@ def amalgamate(roots, include_dir: pathlib.Path, guard: str, title: str) -> str:
         visited.add(target)
         inline(target, include_dir, visited, body)
     header = [
-        # REUSE-IgnoreStart
         '// SPDX-License-Identifier: MIT',
-        # REUSE-IgnoreEnd
         f'// {title}',
         '//',
         '// This file is generated from the modular headers under include/jmpxx by',

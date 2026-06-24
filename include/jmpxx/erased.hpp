@@ -17,8 +17,10 @@
 #ifndef JMPXX_ERASED_HPP
 #define JMPXX_ERASED_HPP
 
-#include "jmpxx/core/config.hpp"
-#include "jmpxx/core/error.hpp"
+// The full minimal core, so the type-erased policy is usable from this header alone:
+// result and the transport the policy is selected over, plus the minimal error. The
+// core is freestanding, so pulling it in keeps this header freestanding-friendly.
+#include "jmpxx/core.hpp"
 
 namespace jmpxx {
 

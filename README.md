@@ -4,7 +4,8 @@
 jmpxx is a header-only C++20 library for non-local, RAII-correct, exception-free
 error propagation. A failure returned deep in a call chain travels to a single
 typed handling point, every destructor along the way runs, and the success path
-compiles to the same machine code as a hand-written branch on a status flag.
+compiles to the same machine code as a hand-written branch on a status flag. A
+committed codegen golden checks that last property on every build.
 
 It is built for code compiled with `-fno-exceptions`: embedded firmware, game
 engines, and low-latency systems, where binary size and tail latency matter and
@@ -38,31 +39,73 @@ jmpxx::result<Config> load_config(std::string_view text) {
 ```
 
 `result<T>` holds either a `T` or an error. `JMPXX_TRY` evaluates an expression,
-binds its value on success, and returns its error to the caller on failure.
+binds its value on success, and returns its error to the caller on failure. The
+same call sites serve three error representations selected by policy at the error
+type: a minimal freestanding code, a rich error that carries a failure's origin and
+causal chain in debug, and a type-erased boundary error. Selecting a policy changes
+no call site.
 
-## Status
+## What you get, and what proves it
 
-v0.1.0, under active development. This release provides the value-or-error
-`result` type, three error representation policies over one transport (the
-minimal freestanding error, the rich error that carries a failure's origin and
-causal chain in debug and is free in release, and the type-erased boundary
-error), the debug-only diagnostic layer, single-construct propagation to a typed
-handling point, and a verification tool whose codegen, size, and allocation
-gates, including a release diff that proves the rich policy is free in release,
-are checked against known-bad inputs so they cannot pass silently. It also
-provides interoperability bridges to `std::expected`, `std::error_code`, and
-language exceptions, with validation of untrusted input at the boundary, and a
-platform abstraction that fences target-specific code behind one unit. An
-experimental, opt-in non-local escape returns a failure from arbitrary call depth
-to one landing boundary while the platform unwinder runs every destructor on the
-path, so the intermediate frames carry no propagation construct. It requires unwind
-tables, is reached only through `jmpxx/unwind.hpp`, and runs on four ABIs including
-a bare-metal target. It also provides the distribution benchmark suite and the
-comparison against the incumbent error-handling mechanisms, an optional reflection
-layer that derives error metadata where C++26 reflection is available and falls back
-to a hand-written path on C++20, and distribution through `find_package`,
-FetchContent, Conan, vcpkg, and a single-header amalgamation, with the observable
-type layout frozen within the major version by a committed gate.
+Every property below is enforced by a gate that fails the build when it breaks, and
+each gate is checked against a known-bad input so it cannot pass silently.
+
+| Guarantee | Backed by |
+|-----------|-----------|
+| Zero overhead versus a hand-written branch on the happy path | committed codegen golden, a 0-byte binary-size delta, and a deterministic callgrind instruction count |
+| Rich diagnostics cost nothing in a release build | a release codegen diff requiring the rich policy to equal the minimal policy |
+| Every destructor on a failure path runs exactly once | instrumented destructor-count tiers, on the portable surface and the unwind arm |
+| A produced failure cannot be discarded silently | a compile-fail tier at the type and at the propagation site |
+| Freestanding: no heap, no exceptions, no RTTI, no hosted header | a freestanding cell, an include-graph scan, and a no-allocation gate |
+| The experimental non-local escape has a bounded, measured sad path | an unwind sad-path distribution gate |
+| No undefined behavior on any exercised path | the address, undefined-behavior, and thread sanitizers and boundary-input fuzzing |
+| The transport layout is frozen within a major version | an ABI layout-descriptor gate |
+| Every documented claim maps to a runnable artifact | a doc-claim tier, and a comparison that states where jmpxx loses |
+
+The `jmpxx-verify` tool reproduces each measurement. `python3 verify/acceptance.py
+--build-dir build` runs every tier and gate and prints one release verdict.
+
+## Supported toolchains and platforms
+
+| | |
+|---|---|
+| Standard | C++20 baseline; C++23 and C++26 as progressive enhancements, never preconditions |
+| Compilers | GCC ≥ 13, Clang ≥ 16, MSVC ≥ 19.31 (Visual Studio 2022 17.1) |
+| Operating systems | Linux, macOS, Windows, FreeBSD, and bare-metal freestanding |
+| Architectures | x86-64, ARM64, ARM32, RISC-V, and WebAssembly |
+
+Every reachable cell builds and runs in continuous integration, the cross
+architectures under emulation. The optional C++26 reflection layer is validated on
+a reflection-capable toolchain and degrades to a hand-written C++20 path that
+produces identical results. `JMPXX_VERSION` (and `JMPXX_VERSION_STRING`) expose the
+version for a one-line consumer check: `#if JMPXX_VERSION >= 100`.
+
+## When to reach for jmpxx
+
+Reach for it when you compile with exceptions disabled, when binary size or tail
+latency is a first-order constraint, when you need to see the generated code, or
+when a recoverable failure has to travel up a deep call chain without every frame
+carrying an error type.
+
+It is not the tool for a programming bug: a precondition violation or a broken
+invariant is routed to a contract or a termination, not propagated as a recoverable
+failure. It is not a general result-and-monad library competing on breadth, not an
+async runtime, not a logging framework, and not a drop-in `longjmp`.
+
+## Repository map
+
+| Path | What it holds |
+|------|---------------|
+| `include/jmpxx/` | the header library, the only thing a consumer compiles against |
+| `docs/` | the guides, the API reference per capability, and the comparison |
+| `examples/` | small programs, one per capability, that build and run as tests |
+| `reference_app/` | the worked example consuming jmpxx through `find_package` |
+| `tests/` | the verification tiers, each independently runnable |
+| `benchmarks/` | the distribution benchmark suite and the perf gates |
+| `verify/` | the `jmpxx-verify` harness and the acceptance sweep |
+| `lint/` | the `jmpxx-lint` companion check set |
+| `packaging/` | the integration-channel metadata and the amalgamation generator |
+| `goldens/` | the committed codegen and ABI-layout goldens |
 
 ## How performance claims are backed
 
@@ -96,6 +139,15 @@ jmpxx](docs/reference/packaging.md) covers every integration channel. The
 [reference application](reference_app/README.md) is the worked example of consuming
 jmpxx through `find_package` alongside two third-party libraries, and the
 [examples](examples/README.md) are small programs showing each capability.
+
+## Versioning and stability
+
+jmpxx follows semantic versioning. While the project is at 0.x the public surface may
+change between minor versions, so `find_package(jmpxx 0.1)` accepts a 0.1.x release and
+rejects 0.2.0. The observable layout of the transport under a fixed policy is held
+frozen from 0.1.0 by the ABI gate, with the experimental unwind arm exempt until it
+graduates. Full surface and ABI stability is promised at 1.0.0. Each change is recorded
+in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

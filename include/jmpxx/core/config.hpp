@@ -15,6 +15,19 @@
 #define JMPXX_VERSION_MINOR 1
 #define JMPXX_VERSION_PATCH 0
 
+// A single comparable integer, major*10000 + minor*100 + patch, so a consumer can
+// gate on a version in one line: #if JMPXX_VERSION >= 200. The scheme caps minor and
+// patch at 99. JMPXX_VERSION_STRING is derived from the components so the two cannot
+// drift.
+#define JMPXX_VERSION \
+  (JMPXX_VERSION_MAJOR * 10000 + JMPXX_VERSION_MINOR * 100 + JMPXX_VERSION_PATCH)
+#define JMPXX_DETAIL_STRINGIZE2(x) #x
+#define JMPXX_DETAIL_STRINGIZE(x) JMPXX_DETAIL_STRINGIZE2(x)
+#define JMPXX_VERSION_STRING                                       \
+  JMPXX_DETAIL_STRINGIZE(JMPXX_VERSION_MAJOR)                      \
+  "." JMPXX_DETAIL_STRINGIZE(JMPXX_VERSION_MINOR) "." JMPXX_DETAIL_STRINGIZE( \
+      JMPXX_VERSION_PATCH)
+
 // JMPXX_CPLUSPLUS is the active standard version, normalized for MSVC in
 // platform/detect.hpp. C++20 is the floor for every supported configuration.
 #if !defined(__cplusplus) || JMPXX_CPLUSPLUS < 202002L

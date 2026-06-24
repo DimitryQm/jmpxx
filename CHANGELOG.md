@@ -8,6 +8,15 @@ is recorded here with its migration impact.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-06-24
+
+The first release. It delivers the value-or-error transport, single-construct
+propagation to a typed landing, the three representation policies over one transport,
+the debug-only diagnostic layer that is free in release, the interop bridges, the
+experimental opt-in unwind arm across four ABIs, the optional reflection layer, the
+verification harness with its gates, the lint companion, and distribution through every
+common channel, each property backed by a gate checked against a known-bad input.
+
 ### Added
 - The value-or-failure transport: a return type that carries either a produced
   value or a failure, holds exactly one of the two across construction,
@@ -32,7 +41,9 @@ is recorded here with its migration impact.
 - One transport and one set of propagation sites serve all three policies, so a
   program selects a policy at its error type with no change at the call sites. An
   optional, off-by-default stack-trace capture is fenced behind the platform
-  abstraction.
+  abstraction. Each policy header is self-contained: including `jmpxx/diagnostics.hpp`
+  or `jmpxx/erased.hpp` pulls in the core transport, so a policy is usable from its
+  own header.
 - Single-construct propagation: a failure propagates from arbitrary call depth to
   a single typed landing boundary with one source-level construct, running every
   destructor on the path exactly once, with the cost of each propagation level
@@ -109,8 +120,18 @@ is recorded here with its migration impact.
   a task-oriented cookbook drawn from the examples, migration guides from
   `std::expected`, `std::error_code`, and exceptions, and a set of public examples that
   build and run as tests.
-- REUSE 3.3 provenance across the tree: every file carries an SPDX license identifier,
-  and the copyright and the license of the generated and data files are recorded in
-  `REUSE.toml`.
+- An `SPDX-License-Identifier: MIT` tag on every source file; the project is
+  MIT-licensed with the full text in `LICENSE`.
+- `JMPXX_VERSION` and `JMPXX_VERSION_STRING`: a combined integer and a string version
+  for a one-line consumer check such as `#if JMPXX_VERSION >= 100`, alongside the
+  existing `JMPXX_VERSION_MAJOR`, `_MINOR`, and `_PATCH` macros.
+- An acceptance sweep, `verify/acceptance.py`, that runs every test tier and every gate
+  over a built tree, pairs each gate with its inverted self-test, and prints one
+  machine-readable release verdict. A gate with no passing inverted self-test fails the
+  verdict. See [docs/reference/verification.md](docs/reference/verification.md).
+- A `find_package(jmpxx)` version file that accepts a matching major and minor version,
+  so a 0.1.x release satisfies a request for 0.1 and a 0.2.0 release does not, the honest
+  contract for a library whose surface may change between 0.x minor versions.
 
-[Unreleased]: https://github.com/DimitryQm/jmpxx
+[Unreleased]: https://github.com/DimitryQm/jmpxx/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/DimitryQm/jmpxx/releases/tag/v0.1.0

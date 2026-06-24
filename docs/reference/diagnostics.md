@@ -28,6 +28,25 @@ failure propagates, each `JMPXX_TRY`, `JMPXX_TRYV`, and `JMPXX_TRYX` on its path
 records the propagation site as one hop. The minimal policy and every release build
 record nothing, because the propagation macros expand the hook to nothing there.
 
+## Capturing the origin at a bridge
+
+The origin is wherever the `rich_error` is constructed, because the location is a
+defaulted `std::source_location` resolved at that point. When a foreign error is
+bridged into a failure, a `VkResult` from a graphics call or an `errno` from the
+filesystem, construct the `rich_error` at the call site so the origin points at the
+caller. A macro does this; a shared helper function does not, because the helper
+captures its own location rather than the caller's. When a function is preferred over
+a macro, give it a trailing `std::source_location loc = std::source_location::current()`
+parameter and forward it to the `rich_error` constructor, which preserves the caller's
+location:
+
+```cpp
+inline jmpxx::failure<jmpxx::rich_error> fail_vk(
+    VkResult r, std::source_location loc = std::source_location::current()) {
+  return jmpxx::fail(jmpxx::rich_error(static_cast<int>(r), vk_domain, loc));
+}
+```
+
 ## `jmpxx::landing`
 
 A scope that owns the diagnostic context of every failure created under it. It

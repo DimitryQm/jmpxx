@@ -100,8 +100,7 @@ no-exceptions build. The single headers are generated from the modular headers b
 `packaging/amalgamate.py`, and a gate regenerates and diffs them, so a committed single
 header cannot drift from the source it is built from.
 
-## License and provenance
+## License
 
-jmpxx is MIT. The tree is REUSE 3.3 compliant: every file carries an
-`SPDX-License-Identifier`, and the copyright and the license of the generated and data
-files are recorded in `REUSE.toml`. The license text is in `LICENSES/MIT.txt`.
+jmpxx is MIT-licensed; the full text is in [LICENSE](../../LICENSE). Every source file
+also carries an `SPDX-License-Identifier: MIT` tag for per-file clarity.

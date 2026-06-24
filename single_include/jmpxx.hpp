@@ -168,6 +168,19 @@
 #define JMPXX_VERSION_MINOR 1
 #define JMPXX_VERSION_PATCH 0
 
+// A single comparable integer, major*10000 + minor*100 + patch, so a consumer can
+// gate on a version in one line: #if JMPXX_VERSION >= 200. The scheme caps minor and
+// patch at 99. JMPXX_VERSION_STRING is derived from the components so the two cannot
+// drift.
+#define JMPXX_VERSION \
+  (JMPXX_VERSION_MAJOR * 10000 + JMPXX_VERSION_MINOR * 100 + JMPXX_VERSION_PATCH)
+#define JMPXX_DETAIL_STRINGIZE2(x) #x
+#define JMPXX_DETAIL_STRINGIZE(x) JMPXX_DETAIL_STRINGIZE2(x)
+#define JMPXX_VERSION_STRING                                       \
+  JMPXX_DETAIL_STRINGIZE(JMPXX_VERSION_MAJOR)                      \
+  "." JMPXX_DETAIL_STRINGIZE(JMPXX_VERSION_MINOR) "." JMPXX_DETAIL_STRINGIZE( \
+      JMPXX_VERSION_PATCH)
+
 // JMPXX_CPLUSPLUS is the active standard version, normalized for MSVC in
 // platform/detect.hpp. C++20 is the floor for every supported configuration.
 #if !defined(__cplusplus) || JMPXX_CPLUSPLUS < 202002L
@@ -945,29 +958,28 @@ template <class Body>
 #endif  // JMPXX_CORE_HPP
 // from jmpxx/diagnostics.hpp
 // SPDX-License-Identifier: MIT
-// The rich default policy and the debug-only diagnostic layer.
+// The rich default policy (rich_error) and the debug-only diagnostic layer.
 //
-// rich_error is the application-facing error representation. It carries the same
-// in-band code and domain as the minimal error, and in a debug build it also tags
-// the failure with a handle into a per-thread out-of-band store that holds the
-// failure's origin and the causal chain it accumulates as it propagates. In a
-// release build the handle, the store, and every diagnostic facility are compiled
-// out: rich_error becomes layout- and codegen-identical to the minimal error, so
-// the application developer who writes the rich policy pays nothing in release that
-// the embedded developer who writes the minimal policy avoids. That identity is the
-// dual-personality guarantee, and it is proven by the release codegen diff and the
-// release size check, not asserted here.
+// rich_error carries the same in-band code and domain as the minimal error; in a debug
+// build it also tags the failure with a handle into a per-thread out-of-band store
+// holding the origin and the causal chain, and in a release build it compiles down to
+// exactly the minimal error. That release identity is the dual-personality guarantee,
+// proven by the release codegen diff, not asserted here. The debug and release
+// behavior, the lifetime rules, and the concurrency contract are in
+// docs/reference/diagnostics.md.
 //
-// This is a hosted extension. Including jmpxx/core.hpp never pulls it in, and it is
-// selected by policy at the error type, with no change at the propagation call
-// sites the minimal policy already uses. The <source_location> include and the
-// origin-capturing machinery exist only under JMPXX_DIAGNOSTICS_ENABLED, because a
-// source location materializes its file and function strings into the binary even
-// where the value is unused, and the only airtight way to keep release free of them
-// is to not name source_location there at all.
+// This is a hosted extension: jmpxx/core.hpp never pulls it in, and it is selected by
+// policy at the error type with no change at the call sites. <source_location> and the
+// origin-capturing machinery are named only under JMPXX_DIAGNOSTICS_ENABLED, because a
+// source location materializes its file and function strings into the binary even where
+// the value is unused, so the only airtight way to keep release free of them is to not
+// name source_location there at all.
 #ifndef JMPXX_DIAGNOSTICS_HPP
 #define JMPXX_DIAGNOSTICS_HPP
 
+// The full minimal core, so the rich policy is usable from this header alone:
+// result, fail, the propagation macros, the minimal error, and the hop hook the
+// rich overload below specializes.
 
 #include <cstdint>
 #include <cstdio>
@@ -975,18 +987,13 @@ template <class Body>
 #if JMPXX_DIAGNOSTICS_ENABLED
 // from jmpxx/diagnostic/store.hpp
 // SPDX-License-Identifier: MIT
-// The out-of-band diagnostic store.
-//
-// A failure's origin and the causal chain it accumulates are held here, beside the
-// in-flight failure rather than inside the transport, so the transport stays narrow
-// and intermediate frames never widen to carry diagnostic context. The store is
-// per-thread, so concurrent failures on different threads never touch the same
-// memory and there is no data race to synchronize against. It is a fixed-capacity
-// arena, so it allocates nothing on any path; a failure deeper than the bound, or
-// one beyond the in-flight bound, is recorded as truncated rather than growing the
-// arena. The arena is a function-local thread_local, so it is lazily and
-// thread-safely initialized on first use and is safe when first touched during
-// dynamic initialization before main.
+// The out-of-band diagnostic store: a failure's origin and the causal chain it
+// accumulates live here, beside the in-flight failure rather than inside the transport,
+// so the transport stays narrow and intermediate frames never widen to carry context.
+// It is a per-thread, fixed-capacity arena, which makes it race-free and allocation-free,
+// and a function-local thread_local, which makes it safe when first touched during
+// dynamic initialization before main. The capacity bounds and the truncation-on-overflow
+// behavior are in docs/reference/diagnostics.md.
 //
 // This header is part of the debug-only diagnostic layer. It is compiled only when
 // JMPXX_DIAGNOSTICS_ENABLED is on and is reached only through jmpxx/diagnostics.hpp.
@@ -1386,6 +1393,9 @@ inline void print(const rich_error& e, std::FILE* out) noexcept {
 #ifndef JMPXX_ERASED_HPP
 #define JMPXX_ERASED_HPP
 
+// The full minimal core, so the type-erased policy is usable from this header alone:
+// result and the transport the policy is selected over, plus the minimal error. The
+// core is freestanding, so pulling it in keeps this header freestanding-friendly.
 
 namespace jmpxx {
 
@@ -2085,40 +2095,24 @@ template <class E, class Take, class MakeError>
 // from jmpxx/interop/error_code.hpp
 // SPDX-License-Identifier: MIT
 // Bridge between jmpxx errors and the standard <system_error> facility,
-// std::error_code.
+// std::error_code. Two directions: a foreign std::error_code is carried verbatim into a
+// result<T, std::error_code> (the transport is generic over its error type, so the
+// category and value are preserved exactly), and a jmpxx::error is exposed as a
+// std::error_code in a jmpxx-owned category that round-trips losslessly through
+// to_error_code / make_error_code / from_error_code. The directions and their fidelity,
+// including the lossy case of recovering a foreign category, are in
+// docs/reference/interop.md.
 //
-// Two directions serve a codebase that already speaks std::error_code:
+// This is a hosted extension: <system_error> is outside the freestanding subset, so this
+// header is never reached from jmpxx/core.hpp.
 //
-//   Adopt a foreign error_code: a function returning std::error_code, or
-//   std::expected<T, std::error_code>, is carried into jmpxx without loss as a
-//   result<T, std::error_code>, because the transport is generic over its error
-//   type. The error_code travels verbatim, so its category identity and value are
-//   preserved exactly. jmpxx::fail(ec) builds the failure, and the std::expected
-//   form bridges through jmpxx/interop/expected.hpp. This is the lossless path for
-//   an error_code that originates outside jmpxx, and it needs nothing from this
-//   header beyond the documentation of it.
-//
-//   Expose a jmpxx error: a jmpxx::error is presented to error_code-based code as
-//   a std::error_code in a jmpxx-owned category. The error's code becomes the
-//   error_code value and the error's domain selects the category, so the pair
-//   round-trips losslessly back to the same jmpxx::error. to_error_code performs
-//   the conversion, make_error_code is the same operation under the name argument-
-//   dependent lookup expects, and from_error_code recovers the jmpxx::error from a
-//   code in a jmpxx category.
-//
-// This is a hosted extension. <system_error> is not part of the freestanding
-// subset, so this header is never reached from jmpxx/core.hpp and is not usable in
-// a freestanding build; a freestanding consumer that needs error_code interop does
-// not have <system_error> to interoperate with in the first place.
-//
-// Category identity caveat: a std::error_category is identified by the address of
-// its singleton. The jmpxx categories below are held in one process-wide table, so
-// within a single binary two conversions of the same jmpxx error compare equal.
-// Across a shared-library boundary built with hidden visibility, a category can be
-// duplicated, the same hazard that affects std::error_category and typeid across
-// modules; a program that compares jmpxx-derived error_codes across such a boundary
-// should compare on (value, domain) recovered through from_error_code rather than
-// on category identity.
+// Category identity caveat: a std::error_category is identified by the address of its
+// singleton. The jmpxx categories below are held in one process-wide table, so within a
+// single binary two conversions of the same error compare equal. Across a shared-library
+// boundary built with hidden visibility a category can be duplicated, the same hazard
+// that affects std::error_category and typeid across modules; compare on (value, domain)
+// recovered through from_error_code rather than on category identity across such a
+// boundary.
 #ifndef JMPXX_INTEROP_ERROR_CODE_HPP
 #define JMPXX_INTEROP_ERROR_CODE_HPP
 

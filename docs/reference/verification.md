@@ -83,6 +83,24 @@ fail boolean, `metrics` maps each metric name to a number, string, or boolean, a
 any messages. Continuous integration and the gate scripts consume this rather than parsing prose.
 The schema is stable within a major version.
 
+## Acceptance sweep
+
+`verify/acceptance.py` runs the whole suite over a built tree and reduces it to one release
+verdict. It runs every tier and every gate through CTest, pairs each gate with its inverted
+self-test (the `.teeth` cases), and reports a gate green only when both the gate and its teeth
+pass. A gate with no passing inverted self-test is reported `unteethed` and fails the verdict, so
+the report cannot read green while a gate is unproven. It records the cell's compiler,
+architecture, and standard and the headline metrics from `jmpxx-verify`.
+
+```sh
+python3 verify/acceptance.py --build-dir build --format json --out acceptance.json
+```
+
+The report object carries `cell`, `summary`, `gates` (each with its status and its gate and teeth
+members), `tiers`, `metrics`, and a top-level `verdict`, and the schema is stable within a major
+version. `--self-test` proves the verdict logic itself, that it fails a failed test and a gate
+with no inverted self-test, and it runs as a tier in the suite.
+
 ## Reproducing the comparison
 
 ```sh

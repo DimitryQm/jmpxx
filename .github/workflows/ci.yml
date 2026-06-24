@@ -218,11 +218,3 @@ jobs:
           pipx install conan
           conan profile detect --force
           conan create . -s compiler.cppstd=20
-
-  reuse:
-    name: reuse lint
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - run: pipx install reuse
-      - run: reuse lint
