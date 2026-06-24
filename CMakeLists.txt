@@ -14,6 +14,8 @@ endif()
 
 option(JMPXX_BUILD_VERIFY "Build the jmpxx-verify verification harness" ${JMPXX_TOP})
 option(JMPXX_BUILD_TESTS "Build the test tiers" ${JMPXX_TOP})
+option(JMPXX_BUILD_BENCHMARKS "Build the distribution benchmark surface" ${JMPXX_TOP})
+option(JMPXX_BUILD_LINT "Build the out-of-tree companion check set (needs LLVM/Clang dev)" ${JMPXX_TOP})
 option(JMPXX_BUILD_REFERENCE_APP "Build the field-use reference application" OFF)
 option(JMPXX_INSTALL "Generate install and package-config rules" ON)
 
@@ -35,6 +37,22 @@ if(JMPXX_TOP)
   if(JMPXX_BUILD_TESTS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt)
     enable_testing()
     add_subdirectory(tests)
+  endif()
+  if(JMPXX_BUILD_BENCHMARKS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/CMakeLists.txt)
+    # The benchmark tests register only when the test tiers are on, so the perf gate runs as
+    # part of ctest; enable_testing was called above in that case.
+    if(JMPXX_BUILD_TESTS)
+      set(JMPXX_BENCH_TESTS ON)
+    endif()
+    add_subdirectory(benchmarks)
+  endif()
+  if(JMPXX_BUILD_LINT AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lint/CMakeLists.txt)
+    # The lint companion links the LLVM and Clang libraries and skips itself when they are
+    # absent; its tests register only alongside the other test tiers.
+    if(JMPXX_BUILD_TESTS)
+      set(JMPXX_LINT_TESTS ON)
+    endif()
+    add_subdirectory(lint)
   endif()
   if(JMPXX_BUILD_REFERENCE_APP AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/reference_app/CMakeLists.txt)
     add_subdirectory(reference_app)

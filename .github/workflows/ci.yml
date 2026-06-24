@@ -23,7 +23,11 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y ninja-build clang-18 clang-19
       - name: configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DCMAKE_CXX_STANDARD=${{ matrix.std }}
+        # The benchmark and lint surfaces are exercised in the dedicated perf-and-lint job, which
+        # provisions valgrind, Boost, and the LLVM development libraries; this matrix stays focused
+        # on the engine across compilers and standards. The size and compile-cost gates live in the
+        # test tiers and run here regardless.
+        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DCMAKE_CXX_STANDARD=${{ matrix.std }} -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - name: build
         run: cmake --build build
       - name: test
@@ -36,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y ninja-build clang-19
       - name: configure and build the core and interop under the C++26 dialect
-        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-19 -DCMAKE_CXX_STANDARD=26
+        run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-19 -DCMAKE_CXX_STANDARD=26 -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - run: cmake --build build
       - run: ctest --test-dir build --output-on-failure
 
@@ -46,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y ninja-build
-      - run: cmake --preset asan-ubsan
+      - run: cmake --preset asan-ubsan -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - run: cmake --build --preset asan-ubsan
       - run: ctest --preset asan-ubsan
 
@@ -107,7 +111,7 @@ jobs:
           version: "14.2"
           run: |
             sudo pkg install -y cmake ninja
-            cmake -S . -B build -G Ninja
+            cmake -S . -B build -G Ninja -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
             cmake --build build
             # The sanitizer and bash-scan tiers and the g++-13-pinned codegen and
             # freestanding tiers are covered on Linux; the BSD cell proves the
@@ -121,7 +125,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: brew install ninja
-      - run: cmake -S . -B build -G Ninja
+      - run: cmake -S . -B build -G Ninja -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - run: cmake --build build
       - run: ctest --test-dir build --output-on-failure
 
@@ -131,7 +135,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
-      - run: cmake -S . -B build
+      - run: cmake -S . -B build -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - run: cmake --build build --config Release
       - run: ctest --test-dir build --output-on-failure -C Release
       - name: build and run the experimental unwind arm on MSVC
@@ -146,10 +150,27 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ninja-build
       - name: install jmpxx
         run: |
-          cmake -S . -B build -G Ninja -DJMPXX_BUILD_TESTS=OFF -DJMPXX_BUILD_VERIFY=OFF
+          cmake -S . -B build -G Ninja -DJMPXX_BUILD_TESTS=OFF -DJMPXX_BUILD_VERIFY=OFF -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
           cmake --install build --prefix "$HOME/jmpxx-prefix"
       - name: build and test the reference application against the installed package
         run: |
           cmake -S reference_app -B refbuild -G Ninja -DCMAKE_PREFIX_PATH="$HOME/jmpxx-prefix"
           cmake --build refbuild
           ctest --test-dir refbuild --output-on-failure
+
+  perf-and-lint:
+    name: perf gates and lint companion
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # valgrind drives the deterministic instruction-count gate, Boost provides the Outcome and
+      # LEAF incumbents, and the LLVM development packages build the companion check set. None is a
+      # runtime dependency of the library; all are dev-only, used by this verification job.
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build valgrind libboost-dev llvm-18-dev libclang-18-dev clang-tools-18
+      - name: build the benchmark and lint surfaces
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang
+          cmake --build build
+      - name: run the size, compile-cost, perf, and lint gates
+        run: ctest --test-dir build --output-on-failure -R 'size_delta|compile_cost|bench|lint'

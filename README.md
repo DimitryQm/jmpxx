@@ -57,16 +57,35 @@ experimental, opt-in non-local escape returns a failure from arbitrary call dept
 to one landing boundary while the platform unwinder runs every destructor on the
 path, so the intermediate frames carry no propagation construct. It requires unwind
 tables, is reached only through `jmpxx/unwind.hpp`, and runs on four ABIs including
-a bare-metal target. The full benchmark suite and the wider packaging surfaces are
-planned for later releases.
+a bare-metal target. It also provides the distribution benchmark suite and the
+comparison against the incumbent error-handling mechanisms; the wider packaging
+surfaces are planned for later releases.
 
 ## How performance claims are backed
 
 Every statement about size, speed, or generated code is measured and gated in
 CI, and a regression fails the build. The `jmpxx-verify` tool compiles a fixture,
 emits its optimized machine code, compares it against a committed reference, and
-reports transport size and allocation counts as JSON. Claims without a backing
-artifact are not made.
+reports transport size, the binary-size delta over a hand-written branch, and the
+compile-cost as a deterministic instantiation count. The `jmpxx-bench` tool reports
+the per-call latency distribution against every incumbent, and a callgrind run counts
+the instructions each executes, deterministically. [docs/comparison.md](docs/comparison.md)
+states where jmpxx wins and where it does not. Claims without a backing artifact are
+not made.
+
+## The companion check set
+
+`jmpxx-lint` is an out-of-tree Clang tool that enforces the usage discipline in
+consumer code: it flags a discarded failure, a value taken through a narrow accessor
+with no success check, and a hand-written failure forward that `JMPXX_TRY` expresses.
+It is a developer tool, never a runtime or include dependency.
+
+## Documentation
+
+[docs/](docs/README.md) holds the performance comparison, the API reference for each
+capability, and the reference for the verification and lint tooling. The
+[reference application](reference_app/README.md) is the worked example of consuming
+jmpxx through `find_package` alongside two third-party libraries.
 
 ## License
 

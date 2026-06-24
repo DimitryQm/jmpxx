@@ -680,6 +680,267 @@ int probe_release_diff(Fmt fmt, const std::vector<std::string>& args) {
   return r.finish();
 }
 
+// Pick the pinned compiler for an architecture, overridable for diagnosis through
+// the environment. Returns an empty string on an unknown architecture. Shared by the
+// compile-and-measure probes (codegen pins its own compiler inline; the size and
+// compile-cost probes added later use this).
+std::string select_cxx(const std::string& arch) {
+  if (const char* env = std::getenv("JMPXX_CG_CXX")) return env;
+  if (arch == "x86_64") return "g++-13";
+  if (arch == "aarch64") return "aarch64-linux-gnu-g++";
+  return "";
+}
+
+// Run `size` on an object file and return its .text and total (dec) byte counts.
+// found is false when the tool output could not be parsed. The Berkeley format prints
+// a header line then "text data bss dec hex filename"; the dec field is the section
+// total the budget is set against.
+struct ObjSize {
+  long long text = 0;
+  long long total = 0;
+  bool found = false;
+};
+ObjSize measure_obj(const std::string& obj, const std::string& size_tool) {
+  ObjSize s;
+  const std::string out = "/tmp/jmpxx_size.txt";
+  if (std::system((size_tool + " " + obj + " > " + out + " 2>/dev/null").c_str()) != 0)
+    return s;
+  std::istringstream in(read_file(out));
+  std::string line;
+  std::getline(in, line);  // header
+  if (std::getline(in, line)) {
+    std::istringstream nums(line);
+    long long text = 0, data = 0, bss = 0, dec = 0;
+    if (nums >> text >> data >> bss >> dec) {
+      s.text = text;
+      s.total = dec;
+      s.found = true;
+    }
+  }
+  return s;
+}
+
+// size-delta: the binary-size cost the library adds over the hand-written baseline,
+// measured deterministically. A fixture that uses jmpxx and a baseline that does the
+// same work by hand are each compiled to an object file in the release, no-exceptions,
+// no-RTTI configuration the niche ships, and the difference in section bytes is the
+// library's size tax. For the zero-overhead kernel the delta is zero. The gate fails
+// when a delta exceeds its committed budget,
+// and it has teeth: a deliberately bloated fixture exceeds the budget and fails. The
+// measurement is bit-for-bit reproducible for a fixed compiler and flags, so the gate
+// never flakes, unlike a wall-clock measurement.
+int probe_size_delta(Fmt fmt, const std::vector<std::string>& args) {
+  std::string fixture, baseline, arch = "x86_64";
+  std::string size_tool = "size";
+  long long max_text = 0, max_total = 0;  // budgets in bytes; 0 means require parity
+  bool have_text_budget = false, have_total_budget = false;
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    const std::string& a = args[i];
+    auto next = [&]() { return (i + 1 < args.size()) ? args[++i] : std::string(); };
+    if (a == "--fixture") fixture = next();
+    else if (a == "--baseline") baseline = next();
+    else if (a == "--arch") arch = next();
+    else if (a == "--size-tool") size_tool = next();
+    else if (a == "--max-text-delta") { max_text = std::atoll(next().c_str()); have_text_budget = true; }
+    else if (a == "--max-total-delta") { max_total = std::atoll(next().c_str()); have_total_budget = true; }
+  }
+  Report r(fmt, "size-delta");
+  r.str("fixture", fixture);
+  r.str("baseline", baseline);
+  r.str("arch", arch);
+  if (fixture.empty() || baseline.empty()) {
+    r.fail("size-delta requires --fixture and --baseline");
+    return r.finish();
+  }
+  std::string cxx = select_cxx(arch);
+  if (cxx.empty()) {
+    r.fail("unknown --arch (expected x86_64 or aarch64)");
+    return r.finish();
+  }
+  r.str("compiler", cxx);
+
+  // The ship configuration for the niche: release (NDEBUG drops the diagnostic
+  // layer), exceptions and RTTI off, identical for both objects so the delta is the
+  // library's contribution and nothing else.
+  const std::string flags =
+      " -std=c++20 -O2 -DNDEBUG -fno-exceptions -fno-rtti -fno-ident -c"
+      " -I" JMPXX_INCLUDE_DIR " -I" JMPXX_BENCH_KERNELS_DIR " ";
+  const std::string fobj = "/tmp/jmpxx_sd_fixture.o";
+  const std::string bobj = "/tmp/jmpxx_sd_baseline.o";
+  const std::string err_out = "/tmp/jmpxx_sd.err";
+  if (std::system((cxx + flags + "-o " + fobj + " " + fixture + " 2> " + err_out).c_str()) != 0) {
+    r.fail("fixture failed to compile: " + trim(read_file(err_out)));
+    return r.finish();
+  }
+  if (std::system((cxx + flags + "-o " + bobj + " " + baseline + " 2> " + err_out).c_str()) != 0) {
+    r.fail("baseline failed to compile: " + trim(read_file(err_out)));
+    return r.finish();
+  }
+  ObjSize f = measure_obj(fobj, size_tool);
+  ObjSize b = measure_obj(bobj, size_tool);
+  if (!f.found || !b.found) {
+    r.fail("could not measure object size (is '" + size_tool + "' available?)");
+    return r.finish();
+  }
+  long long dtext = f.text - b.text;
+  long long dtotal = f.total - b.total;
+  r.num("fixture.text", f.text);
+  r.num("baseline.text", b.text);
+  r.num("delta.text", dtext);
+  r.num("fixture.total", f.total);
+  r.num("baseline.total", b.total);
+  r.num("delta.total", dtotal);
+  if (have_text_budget) {
+    r.num("budget.text_delta", max_text);
+    if (dtext > max_text)
+      r.fail("text grew " + std::to_string(dtext) + " bytes over the hand-written "
+             "baseline, above the budget " + std::to_string(max_text));
+  }
+  if (have_total_budget) {
+    r.num("budget.total_delta", max_total);
+    if (dtotal > max_total)
+      r.fail("section bytes grew " + std::to_string(dtotal) + " over the hand-written "
+             "baseline, above the budget " + std::to_string(max_total));
+  }
+  return r.finish();
+}
+
+// Compile one source once and return the wall-clock translation time in
+// milliseconds, or -1 on a compile failure with the error left in err_out. Full
+// translation (not syntax-only) so the measurement reflects what a build pays,
+// including the backend, at the stated optimization level.
+long long compile_once(const std::string& cxx, const std::string& flags,
+                       const std::string& src, const std::string& obj,
+                       const std::string& err_out) {
+  std::string cmd = cxx + flags + " -c -o " + obj + " " + src + " 2> " + err_out;
+  using clock = std::chrono::steady_clock;
+  auto t0 = clock::now();
+  int rc = std::system(cmd.c_str());
+  auto t1 = clock::now();
+  if (rc != 0) return -1;
+  return std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+}
+
+// Count the template instantiations in a translation unit, the deterministic
+// compile-cost metric. The source is compiled with Clang's -ftime-trace, which writes
+// a JSON profile beside the object, and the InstantiateClass and InstantiateFunction
+// events are counted. The count does not vary with machine load, unlike wall-clock
+// time, so a gate on it never flakes. Returns -1 if the trace could not be produced,
+// for example because the compiler is not a Clang.
+long long count_instantiations(const std::string& cxx, const std::string& flags,
+                               const std::string& src, const std::string& obj,
+                               const std::string& json, const std::string& err_out) {
+  std::string cmd = cxx + flags +
+                    " -ftime-trace -ftime-trace-granularity=0 -c -o " + obj + " " +
+                    src + " 2> " + err_out;
+  if (std::system(cmd.c_str()) != 0) return -1;
+  std::string trace = read_file(json);
+  if (trace.empty()) return -1;
+  long long n = 0;
+  for (const char* needle : {"\"name\":\"InstantiateClass\"",
+                             "\"name\":\"InstantiateFunction\""}) {
+    std::size_t pos = 0;
+    const std::string key = needle;
+    while ((pos = trace.find(key, pos)) != std::string::npos) { ++n; pos += key.size(); }
+  }
+  return n;
+}
+
+// compile-cost: the translation-time tax the library adds over the hand-written
+// baseline, gated so a translation-cost regression fails the build. A fixture that
+// uses jmpxx and a baseline that does the same work by hand are compiled, and the
+// difference is the tax. Templates and the propagation macro cost more to translate
+// than a plain status return, so the tax is above zero. The comparison reports it.
+//
+// The gate is the deterministic template-instantiation count, not wall-clock time,
+// because the count does not vary with machine load and so the gate never flakes,
+// which is the discipline the project holds for every gate. A fixture's instantiation
+// count is bounded by --max-instantiations. The gate has teeth: an instantiation-heavy
+// fixture instantiates the transport over hundreds of distinct types, far past the
+// bound. The wall-clock ratio is reported alongside as the human-facing tax but is not
+// the gate, since it is the noisy measure; each fixture is compiled --runs times
+// interleaved with the baseline and the minimum is taken, the run least perturbed by
+// scheduling noise.
+int probe_compile_cost(Fmt fmt, const std::vector<std::string>& args) {
+  std::string fixture, baseline, cxx, std_flag = "c++20";
+  int runs = 5;
+  long long max_inst = -1;
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    const std::string& a = args[i];
+    auto next = [&]() { return (i + 1 < args.size()) ? args[++i] : std::string(); };
+    if (a == "--fixture") fixture = next();
+    else if (a == "--baseline") baseline = next();
+    else if (a == "--cxx") cxx = next();
+    else if (a == "--std") std_flag = next();
+    else if (a == "--runs") runs = std::atoi(next().c_str());
+    else if (a == "--max-instantiations") max_inst = std::atoll(next().c_str());
+  }
+  Report r(fmt, "compile-cost");
+  r.str("fixture", fixture);
+  r.str("baseline", baseline);
+  if (fixture.empty() || baseline.empty()) {
+    r.fail("compile-cost requires --fixture and --baseline");
+    return r.finish();
+  }
+  // Clang provides -ftime-trace, the source of the deterministic count; the default is
+  // a Clang and any Clang works for the wall-clock timing too.
+  if (cxx.empty()) {
+    if (const char* env = std::getenv("JMPXX_CC_CXX")) cxx = env;
+    else cxx = "clang++";
+  }
+  if (runs < 1) runs = 1;
+  r.str("compiler", cxx);
+  r.num("runs", runs);
+
+  const std::string flags = " -std=" + std_flag + " -O0 -I" JMPXX_INCLUDE_DIR
+                            " -I" JMPXX_BENCH_KERNELS_DIR;
+  const std::string fobj = "/tmp/jmpxx_cc_fixture.o";
+  const std::string bobj = "/tmp/jmpxx_cc_baseline.o";
+  const std::string fjson = "/tmp/jmpxx_cc_fixture.json";
+  const std::string bjson = "/tmp/jmpxx_cc_baseline.json";
+  const std::string err_out = "/tmp/jmpxx_cc.err";
+
+  // The deterministic gate metric: template-instantiation counts.
+  long long finst = count_instantiations(cxx, flags, fixture, fobj, fjson, err_out);
+  long long binst = count_instantiations(cxx, flags, baseline, bobj, bjson, err_out);
+  if (finst >= 0 && binst >= 0) {
+    r.num("baseline.instantiations", binst);
+    r.num("fixture.instantiations", finst);
+    r.num("instantiations.delta", finst - binst);
+  } else {
+    r.note("instantiation count unavailable (compiler is not a Clang with -ftime-trace)");
+  }
+
+  // The informative wall-clock tax, min of interleaved runs, reported but not gated.
+  long long fmin = -1, bmin = -1;
+  for (int i = 0; i < runs; ++i) {
+    long long b = compile_once(cxx, flags, baseline, bobj, err_out);
+    if (b < 0) { r.fail("baseline failed to compile: " + trim(read_file(err_out))); return r.finish(); }
+    long long f = compile_once(cxx, flags, fixture, fobj, err_out);
+    if (f < 0) { r.fail("fixture failed to compile: " + trim(read_file(err_out))); return r.finish(); }
+    if (bmin < 0 || b < bmin) bmin = b;
+    if (fmin < 0 || f < fmin) fmin = f;
+  }
+  double ratio = static_cast<double>(fmin) / static_cast<double>(bmin > 0 ? bmin : 1);
+  r.num("baseline.min_ms", bmin);
+  r.num("fixture.min_ms", fmin);
+  r.num("walltime.ratio_x100", static_cast<long long>(ratio * 100));
+
+  if (max_inst >= 0) {
+    r.num("budget.instantiations", max_inst);
+    if (finst < 0) {
+      r.fail("an instantiation budget was set but the count could not be measured "
+             "(use a Clang compiler for the compile-cost gate)");
+    } else {
+      r.boolean("within_budget", finst <= max_inst);
+      if (finst > max_inst)
+        r.fail("the fixture instantiates " + std::to_string(finst) +
+               " templates, above the budget " + std::to_string(max_inst));
+    }
+  }
+  return r.finish();
+}
+
 // interop: exercise each bridge and report its round-trip fidelity, so the bridges
 // are observable through the surface rather than only by reading source. The
 // std::expected and exception bridges are reported as available or not, because each
@@ -993,6 +1254,8 @@ int main(int argc, char** argv) {
   if (cmd == "unwind") return probe_unwind(fmt, rest);
   if (cmd == "codegen") return probe_codegen(fmt, rest);
   if (cmd == "release-diff") return probe_release_diff(fmt, rest);
+  if (cmd == "size-delta") return probe_size_delta(fmt, rest);
+  if (cmd == "compile-cost") return probe_compile_cost(fmt, rest);
   if (cmd == "all") {
     int rc = 0;
     rc |= probe_size(fmt);
@@ -1010,6 +1273,6 @@ int main(int argc, char** argv) {
   std::fprintf(stderr,
                "usage: jmpxx-verify <size|alloc|destructors|semantics|levels|"
                "policies|diagnostics|interop|platform|unwind|all|codegen|"
-               "release-diff> [--format=json]\n");
+               "release-diff|size-delta|compile-cost> [--format=json]\n");
   return 2;
 }

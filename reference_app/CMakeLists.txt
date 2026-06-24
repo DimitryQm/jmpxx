@@ -58,6 +58,17 @@ target_link_libraries(config_resolve PRIVATE jmpxx::jmpxx tomlplusplus::tomlplus
 target_compile_features(config_resolve PRIVATE cxx_std_23)
 target_compile_definitions(config_resolve PRIVATE TOML_EXCEPTIONS=0)
 
+# config_bench is the field-use head-to-head: the application's [server] validation implemented
+# with jmpxx and again with std::expected, timed on a real loaded config. Built optimized in the
+# niche configuration so the measurement reflects what ships.
+add_executable(config_bench src/config_bench.cpp)
+target_link_libraries(config_bench PRIVATE jmpxx::jmpxx tomlplusplus::tomlplusplus)
+target_compile_features(config_bench PRIVATE cxx_std_23)
+target_compile_definitions(config_bench PRIVATE TOML_EXCEPTIONS=0)
+if(NOT MSVC)
+  target_compile_options(config_bench PRIVATE -O2 -fno-exceptions -fno-rtti)
+endif()
+
 enable_testing()
 set(CFG ${CMAKE_CURRENT_SOURCE_DIR}/configs)
 foreach(app config_validate_minimal config_validate_rich)
@@ -79,3 +90,8 @@ add_test(NAME config_resolve.cycle COMMAND config_resolve ${CFG}/values_cycle.to
 add_test(NAME config_resolve.missing COMMAND config_resolve ${CFG}/values_missing.toml)
 set_tests_properties(config_resolve.cycle config_resolve.missing
   PROPERTIES WILL_FAIL TRUE)
+
+# The head-to-head runs as a smoke test; its measured numbers are read from its output, not
+# gated, because wall-clock latency is machine-specific.
+add_test(NAME config_bench.runs COMMAND config_bench ${CFG}/valid.toml)
+set_tests_properties(config_bench.runs PROPERTIES TIMEOUT 120)

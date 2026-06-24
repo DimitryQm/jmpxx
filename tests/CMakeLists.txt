@@ -217,6 +217,36 @@ if(JMPXX_CODEGEN_HOST)
   set_tests_properties(release_diff.teeth PROPERTIES WILL_FAIL TRUE)
 endif()
 
+# Binary-size-delta gate: the library adds no bytes over the hand-written branch in
+# the ship configuration. The fixture and the baseline compile to objects of equal section
+# size, so the delta is zero; the teeth case is a bloated fixture whose object is larger and
+# must fail the zero budget. Deterministic for a fixed compiler, so it runs on the codegen
+# host where g++-13 is pinned.
+set(BF ${CMAKE_SOURCE_DIR}/benchmarks/fixtures)
+if(JMPXX_CODEGEN_HOST)
+  add_test(NAME size_delta COMMAND jmpxx-verify size-delta
+    --fixture ${BF}/ship_jmpxx.cpp --baseline ${BF}/ship_handwritten.cpp
+    --max-text-delta 0 --max-total-delta 0)
+  add_test(NAME size_delta.teeth COMMAND jmpxx-verify size-delta
+    --fixture ${BF}/known_bad/ship_bloated.cpp --baseline ${BF}/ship_handwritten.cpp
+    --max-text-delta 0 --max-total-delta 0)
+  set_tests_properties(size_delta.teeth PROPERTIES WILL_FAIL TRUE)
+endif()
+
+# Compile-cost gate: the template-instantiation count, the deterministic compile-cost
+# metric, stays within budget. The gate uses Clang for -ftime-trace; the count is identical
+# across runs and across Clang versions, so the gate never flakes. The teeth case is an
+# instantiation-heavy fixture far above the budget.
+if(JMPXX_CLANGXX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_test(NAME compile_cost COMMAND jmpxx-verify compile-cost
+    --cxx ${JMPXX_CLANGXX} --fixture ${BF}/ship_jmpxx.cpp
+    --baseline ${BF}/ship_handwritten.cpp --runs 3 --max-instantiations 320)
+  add_test(NAME compile_cost.teeth COMMAND jmpxx-verify compile-cost
+    --cxx ${JMPXX_CLANGXX} --fixture ${BF}/known_bad/instantiation_heavy.cpp
+    --baseline ${BF}/ship_handwritten.cpp --runs 1 --max-instantiations 320)
+  set_tests_properties(compile_cost.teeth PROPERTIES WILL_FAIL TRUE)
+endif()
+
 # Freestanding tier: the minimal core builds and runs with exceptions and RTTI
 # disabled and its include graph pulls no hosted header. Pinned to g++-13 on
 # Linux, the one toolchain whose libstdc++ honors -ffreestanding.

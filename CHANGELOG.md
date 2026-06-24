@@ -67,6 +67,25 @@ is recorded here with its migration impact.
 - `jmpxx-verify`: the verification harness that compiles fixtures, emits and
   diffs optimized machine code against committed goldens, and reports transport
   size and allocation counts in human-readable and machine-readable form.
+- The distribution benchmark suite, `jmpxx-bench`, which drives one error-propagation
+  kernel implemented identically for jmpxx, a hand-written branch, `std::expected`,
+  a threaded `std::error_code`, language exceptions, Boost.Outcome, Boost.LEAF, and
+  tl::expected, and reports each mechanism's per-call latency by median and high
+  percentile across a failure-ratio and a depth sweep. The honest comparison, which
+  states where jmpxx loses as plainly as where it wins, is in
+  [docs/comparison.md](docs/comparison.md).
+- The binary-size-delta, compile-cost, and perf gates as continuous gates with teeth.
+  The size gate proves the library adds zero bytes over a hand-written branch in the
+  ship configuration; the compile-cost gate bounds the template-instantiation count,
+  a deterministic metric; the perf gate bounds jmpxx against a co-measured baseline,
+  and a deterministic callgrind instruction count proves the happy path executes the
+  same instructions as the hand-written branch. Each gate fails a known-bad input. See
+  [docs/reference/verification.md](docs/reference/verification.md).
+- The companion check set, `jmpxx-lint`, an out-of-tree Clang tool that flags a
+  discarded result, a value taken through a narrow accessor without a success check,
+  and a hand-written failure forward that `JMPXX_TRY` would express. It is a developer
+  tool, never a runtime or include dependency. See
+  [docs/reference/lint.md](docs/reference/lint.md).
 - A packaging channel through which a separate consumer builds against jmpxx.
 
 [Unreleased]: https://github.com/DimitryQm/jmpxx

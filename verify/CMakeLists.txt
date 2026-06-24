@@ -13,6 +13,7 @@ target_compile_features(jmpxx-verify PRIVATE cxx_std_23)
 # harness itself is built.
 target_compile_definitions(jmpxx-verify PRIVATE
   JMPXX_INCLUDE_DIR="${CMAKE_SOURCE_DIR}/include"
+  JMPXX_BENCH_KERNELS_DIR="${CMAKE_SOURCE_DIR}/benchmarks/kernels"
   JMPXX_DIAGNOSTICS_ENABLED=1)
 if(NOT MSVC)
   target_compile_options(jmpxx-verify PRIVATE -Wall -Wextra)
