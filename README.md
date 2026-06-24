@@ -58,8 +58,11 @@ to one landing boundary while the platform unwinder runs every destructor on the
 path, so the intermediate frames carry no propagation construct. It requires unwind
 tables, is reached only through `jmpxx/unwind.hpp`, and runs on four ABIs including
 a bare-metal target. It also provides the distribution benchmark suite and the
-comparison against the incumbent error-handling mechanisms; the wider packaging
-surfaces are planned for later releases.
+comparison against the incumbent error-handling mechanisms, an optional reflection
+layer that derives error metadata where C++26 reflection is available and falls back
+to a hand-written path on C++20, and distribution through `find_package`,
+FetchContent, Conan, vcpkg, and a single-header amalgamation, with the observable
+type layout frozen within the major version by a committed gate.
 
 ## How performance claims are backed
 
@@ -82,10 +85,17 @@ It is a developer tool, never a runtime or include dependency.
 
 ## Documentation
 
-[docs/](docs/README.md) holds the performance comparison, the API reference for each
-capability, and the reference for the verification and lint tooling. The
+[docs/](docs/README.md) holds the guides, the API reference for each capability, the
+performance comparison, and the reference for the verification and lint tooling.
+[Why this audience disables exceptions](docs/why-no-exceptions.md) is the orientation,
+the [cookbook](docs/cookbook.md) is task-oriented recipes, and there are migration
+guides from [std::expected](docs/migration/from-expected.md),
+[std::error_code](docs/migration/from-error-code.md), and
+[exceptions](docs/migration/from-exceptions.md). [Installing and depending on
+jmpxx](docs/reference/packaging.md) covers every integration channel. The
 [reference application](reference_app/README.md) is the worked example of consuming
-jmpxx through `find_package` alongside two third-party libraries.
+jmpxx through `find_package` alongside two third-party libraries, and the
+[examples](examples/README.md) are small programs showing each capability.
 
 ## License
 

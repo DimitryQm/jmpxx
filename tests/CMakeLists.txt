@@ -26,9 +26,20 @@ add_test(NAME constexpr COMMAND jmpxx_constexpr)
 add_test(NAME property COMMAND jmpxx_property)
 
 # Harness probes are observable capabilities run directly as tests.
-foreach(probe size alloc destructors semantics levels policies diagnostics interop platform)
+foreach(probe size alloc destructors semantics levels policies diagnostics interop reflect platform)
   add_test(NAME probe.${probe} COMMAND jmpxx-verify ${probe})
 endforeach()
+
+# Reflection forward layer, hand-written fallback path. Building the harness and this
+# tier on a C++20 toolchain exercises the fallback that derives enum names, the failure
+# set, and the enum-keyed error domain by parsing the compiler signature; the reflection
+# path is exercised on the reflection-capable continuous-integration cell, which runs the
+# same fixture and must produce the same results. The fixture self-checks its expected
+# metadata and exits non-zero on a mismatch.
+add_executable(jmpxx_reflect_fallback reflect/reflect_behavior.cpp)
+target_link_libraries(jmpxx_reflect_fallback PRIVATE jmpxx::jmpxx)
+target_compile_options(jmpxx_reflect_fallback PRIVATE ${JMPXX_TEST_WARNINGS})
+add_test(NAME reflect.fallback COMMAND jmpxx_reflect_fallback)
 
 # Dual-personality model: the rich and type-erased policies and the debug-only
 # diagnostic layer, each tier independently runnable.
@@ -233,6 +244,34 @@ if(JMPXX_CODEGEN_HOST)
   set_tests_properties(size_delta.teeth PROPERTIES WILL_FAIL TRUE)
 endif()
 
+# ABI layout gate: the observable layout of the frozen public types does not change
+# within the major version. The probe compiles the descriptor fixture in the ship
+# configuration and diffs the emitted layout against the committed golden; the teeth
+# case points the gate at a golden claiming a changed layout, which must fail. Pinned
+# to the LP64 codegen host, where the committed golden's pointer width and type sizes
+# hold; the static tier backstops the architecture-independent facts on every cell.
+if(JMPXX_CODEGEN_HOST)
+  add_test(NAME abi_layout COMMAND jmpxx-verify abi-layout
+    --fixture ${CMAKE_SOURCE_DIR}/tests/abi/layout_descriptor.cpp
+    --golden ${CMAKE_SOURCE_DIR}/goldens/abi/layout_lp64.txt)
+  add_test(NAME abi_layout.teeth COMMAND jmpxx-verify abi-layout
+    --fixture ${CMAKE_SOURCE_DIR}/tests/abi/layout_descriptor.cpp
+    --golden ${CMAKE_SOURCE_DIR}/goldens/abi/known_bad/layout_lp64.bad.txt)
+  set_tests_properties(abi_layout.teeth PROPERTIES WILL_FAIL TRUE)
+endif()
+
+# Single-header amalgamation gate: the committed single headers match the modular
+# source (regenerate and diff), the core header builds and runs freestanding, and the
+# full header builds and runs a hosted consumer. Pinned to g++-13 because the
+# freestanding compile needs the one libstdc++ that honors -ffreestanding, and needs
+# python3 for the generator.
+find_program(JMPXX_PYTHON3 python3)
+if(JMPXX_GXX13 AND JMPXX_PYTHON3 AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_test(NAME amalgamation COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/amalgamation_check.sh
+    ${CMAKE_SOURCE_DIR} ${JMPXX_GXX13})
+endif()
+
 # Compile-cost gate: the template-instantiation count, the deterministic compile-cost
 # metric, stays within budget. The gate uses Clang for -ftime-trace; the count is identical
 # across runs and across Clang versions, so the gate never flakes. The teeth case is an
@@ -266,11 +305,19 @@ if(UNIX AND JMPXX_CLANGXX)
     ${CMAKE_SOURCE_DIR}/tests/property/property_tests.cpp)
 endif()
 
-# Doc-claim tier: documented propagation-level costs match the harness.
+# Doc-claim tier: a documented cost the harness reports must appear verbatim in the
+# reference, so a documented value cannot drift from the measured one. The teeth point
+# the same check at a document that states a cost the harness does not report, which
+# must fail; the other documented cost, size, codegen, perf, and layout claims are each
+# backed by their own gate above, every one checked against a known-bad input.
 if(UNIX)
   add_test(NAME doc_claim COMMAND bash
     ${CMAKE_SOURCE_DIR}/tests/scripts/doc_claim_check.sh
     $<TARGET_FILE:jmpxx-verify> ${CMAKE_SOURCE_DIR}/docs/reference/propagation-levels.md)
+  add_test(NAME doc_claim.teeth COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/doc_claim_check.sh
+    $<TARGET_FILE:jmpxx-verify> ${CMAKE_SOURCE_DIR}/tests/doc_claim/known_bad/propagation_levels.bad.md)
+  set_tests_properties(doc_claim.teeth PROPERTIES WILL_FAIL TRUE)
 endif()
 
 # Unwind-execution tier: the experimental non-local unwind arm is proven by real
@@ -348,3 +395,17 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_CLANGXX)
     ${CMAKE_SOURCE_DIR}/tests/fuzz/fuzz_unwind.cpp 15)
   set_tests_properties(unwind.fuzz PROPERTIES TIMEOUT 120)
 endif()
+
+# The compile-and-measure probes each drive a fixture through a fixed temporary file,
+# so two of them running at once would race on it. A shared resource lock serializes
+# them against each other, which keeps the suite correct under `ctest -j` while every
+# other tier still parallelizes. Continuous integration runs the suite serially, where
+# the race cannot arise; this keeps a parallel local run correct too.
+foreach(t codegen.value_return codegen.propagate_eight codegen.try_branch
+          codegen.teeth.golden codegen.teeth.spill release_diff release_diff.teeth
+          size_delta size_delta.teeth compile_cost compile_cost.teeth
+          abi_layout abi_layout.teeth)
+  if(TEST ${t})
+    set_tests_properties(${t} PROPERTIES RESOURCE_LOCK jmpxx_verify_tmp)
+  endif()
+endforeach()

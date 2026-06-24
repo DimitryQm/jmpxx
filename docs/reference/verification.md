@@ -13,9 +13,13 @@ times it. Both take `--format=json` for one machine-readable object per probe.
 Each subcommand reports named metrics and a pass or fail. The behavioral commands run the engine and
 report what it did. The codegen and size commands compile a fixture and inspect the output.
 
-- `semantics`, `destructors`, `policies`, `diagnostics`, `interop`, `platform` exercise the
-  transport contract, the destructor counts across a deep propagation, the three policies over one
-  body, the diagnostic context, the bridges, and the build's matrix cell.
+- `semantics`, `destructors`, `policies`, `diagnostics`, `interop`, `reflect`, `platform` exercise
+  the transport contract, the destructor counts across a deep propagation, the three policies over
+  one body, the diagnostic context, the bridges, the reflection-derived error metadata, and the
+  build's matrix cell.
+- `abi-layout` compiles a descriptor of the frozen public types in the ship configuration, reports
+  each type's size, alignment, field offsets, and trait bits, and diffs the layout against a
+  committed golden, so an unversioned layout change fails the build. See [abi.md](abi.md).
 - `unwind` drives the experimental arm and reports its destructor count and sad-path distribution,
   detailed in [unwind.md](unwind.md).
 - `codegen` compiles a fixture at `-O2` for a target, slices one function's assembly, and diffs it
@@ -69,6 +73,8 @@ checked against a known-bad input so it cannot pass silently.
 | compile cost | `compile-cost` | instantiation count within budget | an instantiation-heavy fixture |
 | perf | `bench gate` and the callgrind script | jmpxx within a multiple of the baseline | a deliberately slowed kernel |
 | unwind determinism | `unwind` | sad-path tail within a multiple of a throw's | an injected non-deterministic cleanup |
+| abi layout | `abi-layout` | frozen type layout matches the committed golden | a golden claiming a changed layout |
+| doc claim | `doc_claim` script | a documented cost matches the harness | a doc stating a cost the harness does not report |
 
 ## Structured output
 

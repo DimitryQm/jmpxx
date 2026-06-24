@@ -1,0 +1,18 @@
+version = 1
+
+# jmpxx is MIT licensed. Every source, build, and documentation file carries an
+# SPDX-License-Identifier inline; this file supplies the copyright for the whole tree
+# so the project is REUSE compliant without a copyright line repeated in every file,
+# and it supplies both the copyright and the license for the committed golden and data
+# files that cannot carry a comment without changing the bytes a gate compares.
+[[annotations]]
+path = "**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 DimitryQm"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["goldens/**", "reference_app/configs/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 DimitryQm"
+SPDX-License-Identifier = "MIT"

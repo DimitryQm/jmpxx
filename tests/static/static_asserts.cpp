@@ -2,10 +2,21 @@
 // Static tier: properties checked by translation. Building this file is the test.
 #include "jmpxx/core.hpp"
 
+#include <cstddef>
 #include <string>
 #include <type_traits>
 
 using namespace jmpxx;
+
+// ABI freeze, checked on every cell the static tier builds on. The minimal error's
+// size, alignment, and public field offsets are part of the layout the v0.1.0 ABI
+// promise holds fixed within the major version (docs/reference/abi.md); a reorder or
+// an inserted field breaks these and fails the build everywhere, not only where the
+// layout-descriptor gate runs. offsetof is well defined here because error is
+// standard-layout.
+static_assert(sizeof(error) == 8 && alignof(error) == 4);
+static_assert(offsetof(error, code) == 0 && offsetof(error, domain) == 4);
+static_assert(std::is_standard_layout_v<error>);
 
 // Trivial copyability is preserved when, and only when, the contents are trivial.
 static_assert(std::is_trivially_copyable_v<result<int, int>>);

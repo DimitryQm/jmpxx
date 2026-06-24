@@ -36,3 +36,6 @@ compile_commands.json
 # local out-of-tree build and install dirs (packaging-channel checks)
 /pkgbuild/
 /refbuild/
+
+# conan/cmake generated user presets
+CMakeUserPresets.json

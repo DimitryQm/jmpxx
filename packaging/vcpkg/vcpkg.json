@@ -1,0 +1,11 @@
+{
+  "name": "jmpxx",
+  "version": "0.1.0",
+  "description": "Non-local, RAII-correct, exception-free failure propagation for C++20.",
+  "homepage": "https://github.com/DimitryQm/jmpxx",
+  "license": "MIT",
+  "dependencies": [
+    { "name": "vcpkg-cmake", "host": true },
+    { "name": "vcpkg-cmake-config", "host": true }
+  ]
+}

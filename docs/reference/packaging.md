@@ -1,0 +1,107 @@
+<!-- SPDX-License-Identifier: MIT -->
+# Installing and depending on jmpxx
+
+jmpxx is header-only with zero runtime dependencies, so depending on it is including a
+header and, for the CMake channels, linking one interface target, `jmpxx::jmpxx`, which
+carries the include path and the C++20 requirement. Every channel below builds a clean
+consumer, each checked by a consumer program under `packaging/`.
+
+## CMake find_package
+
+Install jmpxx, then find it:
+
+```sh
+cmake -S . -B build -DJMPXX_BUILD_TESTS=OFF
+cmake --install build --prefix /path/to/prefix
+```
+
+```cmake
+find_package(jmpxx CONFIG REQUIRED)
+target_link_libraries(app PRIVATE jmpxx::jmpxx)
+```
+
+The installed package version file declares `SameMajorVersion` compatibility, so
+`find_package(jmpxx 0)` accepts any 0.x release; see [abi.md](abi.md) for what that
+promises about type layout.
+
+## FetchContent and add_subdirectory
+
+The same definition works as a subproject. A consumer fetches jmpxx, or finds an
+installed copy first, from one call:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(jmpxx
+  GIT_REPOSITORY https://github.com/DimitryQm/jmpxx.git
+  GIT_TAG v0.1.0
+  FIND_PACKAGE_ARGS NAMES jmpxx)
+FetchContent_MakeAvailable(jmpxx)
+target_link_libraries(app PRIVATE jmpxx::jmpxx)
+```
+
+`add_subdirectory(path/to/jmpxx)` works the same way. The library target is guarded so
+a build that pulls jmpxx in through more than one dependency does not redefine it, and
+the install rules are generated only for a standalone build, so a parent project does
+not inherit them.
+
+## CPM.cmake
+
+```cmake
+CPMAddPackage("gh:DimitryQm/jmpxx@0.1.0")
+target_link_libraries(app PRIVATE jmpxx::jmpxx)
+```
+
+## Conan
+
+A recipe ships at the repository root. Build the package and depend on it without
+waiting for a central registry:
+
+```sh
+conan create . -s compiler.cppstd=20
+```
+
+```python
+def requirements(self):
+    self.requires("jmpxx/0.1.0")
+```
+
+The CMake target is `jmpxx::jmpxx`. Conan does not propagate a compile-feature
+requirement to the consumer, so a consumer sets C++20 itself; the recipe rejects a
+lower standard with a clear message rather than a compiler error from the headers.
+
+## vcpkg
+
+An overlay port ships under `packaging/vcpkg`. Install it without the central registry:
+
+```sh
+vcpkg install jmpxx --overlay-ports=packaging/vcpkg
+```
+
+The port's source hash is set when a version is tagged.
+
+## Single-header amalgamation
+
+Two generated single headers ship under `single_include` for a consumer that prefers
+to drop one file in rather than add an include directory tree.
+
+- `jmpxx-core.hpp` is the freestanding minimal core, the same surface as
+  `jmpxx/core.hpp`, and pulls in nothing outside the freestanding subset.
+- `jmpxx.hpp` is the full hosted surface: the core, the diagnostic layer, the
+  type-erased policy, the reflection layer, the platform queries, and the interop
+  bridges.
+
+```cpp
+#include <jmpxx.hpp>        // or <jmpxx-core.hpp> for the freestanding core
+```
+
+The experimental unwind arm is not amalgamated; it stays the opt-in
+`jmpxx/unwind.hpp` include, because it requires unwind tables and refuses a
+no-exceptions build. The single headers are generated from the modular headers by
+`packaging/amalgamate.py`, and a gate regenerates and diffs them, so a committed single
+header cannot drift from the source it is built from.
+
+## License and provenance
+
+jmpxx is MIT. The tree is REUSE 3.3 compliant: every file carries an
+`SPDX-License-Identifier`, and the copyright and the license of the generated and data
+files are recorded in `REUSE.toml`. The license text is in `LICENSES/MIT.txt`.

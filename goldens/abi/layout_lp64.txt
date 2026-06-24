@@ -1,0 +1,9 @@
+# jmpxx ABI layout descriptor (frozen public types, ship/release configuration)
+pointer_bits=64
+error sizeof=8 alignof=4 trivially_copyable=1 standard_layout=1 code=0 domain=4
+rich_error sizeof=8 alignof=4 trivially_copyable=1 standard_layout=1 code=0 domain=4
+erased_error sizeof=16 alignof=8 trivially_copyable=1 standard_layout=1
+result<int,error> sizeof=12 alignof=4 trivially_copyable=1 standard_layout=1
+result<void,error> sizeof=12 alignof=4 trivially_copyable=1 standard_layout=1
+result<int,erased_error> sizeof=24 alignof=8 trivially_copyable=1 standard_layout=1
+result<int,rich_error> sizeof=12 alignof=4 trivially_copyable=1 standard_layout=1

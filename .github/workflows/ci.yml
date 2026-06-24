@@ -174,3 +174,55 @@ jobs:
           cmake --build build
       - name: run the size, compile-cost, perf, and lint gates
         run: ctest --test-dir build --output-on-failure -R 'size_delta|compile_cost|bench|lint'
+
+  reflection:
+    name: c++26 reflection cell
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # The reflection-capable toolchain is a fetched container, the Bloomberg
+      # clang-p2996 fork, pinned by digest. It builds the reflection layer on the
+      # reflection path; the same fixture builds on the C++20 cell through the
+      # hand-written fallback, and both must produce the same results.
+      - name: build and run the reflection layer on the reflection path
+        run: |
+          IMG=vsavkov/clang-p2996@sha256:6672c4227b09efc7318695c17e8a8f696e193f451b52d885d220f593593dc1c8
+          docker run --rm -v "$PWD":/src -w /src "$IMG" bash -lc '
+            FLAGS="-std=c++26 -freflection -fexpansion-statements -stdlib=libc++ -DJMPXX_REFLECTION=1 -Wl,-rpath,/opt/p2996/clang/lib/x86_64-unknown-linux-gnu -Iinclude"
+            clang++ $FLAGS tests/reflect/reflect_behavior.cpp -o /tmp/rb && /tmp/rb
+            clang++ $FLAGS examples/reflection.cpp -o /tmp/rx && /tmp/rx'
+      - name: confirm the C++20 cell builds the full core with the reflection layer absent
+        run: |
+          sudo apt-get update && sudo apt-get install -y g++-13
+          g++-13 -std=c++20 -fno-exceptions -fno-rtti -Iinclude -fsyntax-only examples/reflection.cpp
+          g++-13 -std=c++20 -fno-exceptions -fno-rtti -Iinclude -fsyntax-only -c tests/freestanding/fs_core.cpp -o /dev/null
+
+  packaging-consumers:
+    name: packaging consumers
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build pipx
+      - name: add_subdirectory and FetchContent channel
+        run: |
+          cmake -S packaging/consumers/subdir -B b_subdir -G Ninja -DJMPXX_ROOT="$PWD"
+          cmake --build b_subdir
+          ctest --test-dir b_subdir --output-on-failure
+      - name: single-header amalgamation channel
+        run: |
+          cmake -S packaging/consumers/amalgamation -B b_amalg -G Ninja -DJMPXX_ROOT="$PWD"
+          cmake --build b_amalg
+          ctest --test-dir b_amalg --output-on-failure
+      - name: conan channel (create plus test_package round-trip)
+        run: |
+          pipx install conan
+          conan profile detect --force
+          conan create . -s compiler.cppstd=20
+
+  reuse:
+    name: reuse lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: pipx install reuse
+      - run: reuse lint

@@ -86,6 +86,31 @@ is recorded here with its migration impact.
   and a hand-written failure forward that `JMPXX_TRY` would express. It is a developer
   tool, never a runtime or include dependency. See
   [docs/reference/lint.md](docs/reference/lint.md).
-- A packaging channel through which a separate consumer builds against jmpxx.
+- The optional reflection forward layer, `jmpxx/reflect.hpp`, which derives error
+  metadata from an enum: the enumerator name from a value and back, the static set of
+  failures an error enum declares, and an `error_domain` whose per-value message is the
+  enumerator name. Where C++26 static reflection is available it uses reflection; where
+  it is not, a hand-written C++20 path parses the compiler signature, and the two
+  produce identical results. Nothing in the core requires it, and the full core builds
+  with it absent on a C++20 toolchain. See
+  [docs/reference/reflect.md](docs/reference/reflect.md).
+- Distribution through every common channel: a CMake package for `find_package`, the
+  same definition usable through FetchContent, `add_subdirectory`, and CPM, an in-repo
+  Conan recipe, a vcpkg overlay port, and two generated single-header amalgamations, a
+  freestanding `jmpxx-core.hpp` and a full hosted `jmpxx.hpp`. The single headers are
+  regenerated and diffed by a gate so they cannot drift, and a consumer is built through
+  each channel. See [docs/reference/packaging.md](docs/reference/packaging.md).
+- An ABI layout gate that freezes the observable layout of the public types, their size,
+  alignment, field offsets, and trivial copyability, within a major version, with the
+  experimental arm exempt until graduated. A static tier pins the layout on every cell
+  and a golden gate catches an unversioned change, with teeth. See
+  [docs/reference/abi.md](docs/reference/abi.md).
+- Documentation for adoption: the orientation on why the audience disables exceptions,
+  a task-oriented cookbook drawn from the examples, migration guides from
+  `std::expected`, `std::error_code`, and exceptions, and a set of public examples that
+  build and run as tests.
+- REUSE 3.3 provenance across the tree: every file carries an SPDX license identifier,
+  and the copyright and the license of the generated and data files are recorded in
+  `REUSE.toml`.
 
 [Unreleased]: https://github.com/DimitryQm/jmpxx

@@ -15,6 +15,7 @@
 #include "jmpxx/core.hpp"
 #include "jmpxx/diagnostics.hpp"
 #include "jmpxx/erased.hpp"
+#include "jmpxx/reflect.hpp"
 #include "jmpxx/interop/adapt.hpp"
 #include "jmpxx/interop/error_code.hpp"
 #include "jmpxx/interop/exception.hpp"
@@ -941,6 +942,97 @@ int probe_compile_cost(Fmt fmt, const std::vector<std::string>& args) {
   return r.finish();
 }
 
+// abi-layout: the observable memory layout of the public types, the ABI promise for
+// a header library that ships no object. The probe compiles the layout-descriptor
+// fixture in the configuration the niche ships, release with exceptions and RTTI
+// disabled, runs it to emit the layout of every frozen type, and diffs that against a
+// committed golden. A divergence is an unversioned layout change and fails the build,
+// the same discipline the codegen golden holds for generated code. The gate has teeth:
+// pointed at a golden that claims a different layout it fails, which is the
+// unversioned-change case. --update rewrites the golden after a justified, version-bumped
+// change. The frozen set and the rationale are in docs/reference/abi.md.
+int probe_abi_layout(Fmt fmt, const std::vector<std::string>& args) {
+  std::string fixture, golden, arch = "x86_64";
+  bool update = false;
+  for (std::size_t i = 0; i < args.size(); ++i) {
+    const std::string& a = args[i];
+    auto next = [&]() { return (i + 1 < args.size()) ? args[++i] : std::string(); };
+    if (a == "--fixture") fixture = next();
+    else if (a == "--golden") golden = next();
+    else if (a == "--arch") arch = next();
+    else if (a == "--update") update = true;
+  }
+  Report r(fmt, "abi-layout");
+  r.str("fixture", fixture);
+  r.str("golden", golden);
+  if (fixture.empty() || golden.empty()) {
+    r.fail("abi-layout requires --fixture and --golden");
+    return r.finish();
+  }
+  std::string cxx = select_cxx(arch);
+  if (cxx.empty()) {
+    r.fail("unknown --arch (expected x86_64 or aarch64)");
+    return r.finish();
+  }
+  r.str("compiler", cxx);
+
+  // The ship configuration: release (NDEBUG drops the diagnostic handle so the rich
+  // representation is its frozen form), exceptions and RTTI off. The descriptor is
+  // compiled to an executable and run, because the layout it reports is what the
+  // running program observes.
+  const std::string exe = "/tmp/jmpxx_abi_descriptor";
+  const std::string out = "/tmp/jmpxx_abi_layout.txt";
+  const std::string err_out = "/tmp/jmpxx_abi.err";
+  std::string cmd = cxx +
+      " -std=c++20 -O2 -DNDEBUG -fno-exceptions -fno-rtti"
+      " -I" JMPXX_INCLUDE_DIR " -o " + exe + " " + fixture + " 2> " + err_out;
+  if (std::system(cmd.c_str()) != 0) {
+    r.fail("descriptor fixture failed to compile: " + trim(read_file(err_out)));
+    return r.finish();
+  }
+  if (std::system((exe + " > " + out + " 2>> " + err_out).c_str()) != 0) {
+    r.fail("descriptor fixture failed to run: " + trim(read_file(err_out)));
+    return r.finish();
+  }
+  std::string emitted = read_file(out);
+
+  // Report each frozen type's size as a metric, so the layout is observable through
+  // the surface and a continuous-integration run records it without parsing prose.
+  std::istringstream in(emitted);
+  std::string line;
+  while (std::getline(in, line)) {
+    std::string t = trim(line);
+    if (t.empty() || t[0] == '#') continue;
+    std::size_t sp = t.find(' ');
+    std::string name = (sp == std::string::npos) ? t : t.substr(0, sp);
+    std::size_t sz = t.find("sizeof=");
+    if (name == "pointer_bits") {
+      r.num("pointer_bits", std::atoll(t.c_str() + t.find('=') + 1));
+    } else if (sz != std::string::npos) {
+      r.num(name + ".sizeof", std::atoll(t.c_str() + sz + 7));
+    }
+  }
+
+  if (update) {
+    if (!write_file(golden, emitted))
+      r.fail("could not write golden " + golden);
+    else
+      r.note("golden updated: " + golden);
+    return r.finish();
+  }
+
+  std::string want = read_file(golden);
+  bool matches = (want == emitted);
+  r.boolean("golden_match", matches);
+  if (!matches) {
+    r.fail("the observed type layout diverged from the committed ABI golden; an "
+           "unversioned layout change under a fixed policy");
+    r.note("expected:\n" + want);
+    r.note("observed:\n" + emitted);
+  }
+  return r.finish();
+}
+
 // interop: exercise each bridge and report its round-trip fidelity, so the bridges
 // are observable through the surface rather than only by reading source. The
 // std::expected and exception bridges are reported as available or not, because each
@@ -1000,6 +1092,46 @@ int probe_interop(Fmt fmt) {
     r.boolean("adapt.from_condition", cond);
     if (!opt || !cond) r.fail("optional-like adapter failed");
   }
+  return r.finish();
+}
+
+// reflect: report the error metadata the reflection forward layer derives, so the
+// capability is observable through the surface rather than only by reading source. The
+// harness reports whichever path computed the metadata, the reflection path on a
+// reflection-capable build and the hand-written fallback otherwise, and both must
+// agree; the probe self-checks the derived values against the known metadata of its
+// sample enum, so a regression in either path fails it.
+namespace rf {
+enum class status { ok = 0, denied = 7, not_found = 2, timeout = 5 };
+}  // namespace rf
+
+int probe_reflect(Fmt fmt) {
+  using rf::status;
+  Report r(fmt, "reflect");
+  r.num("reflection_enabled", JMPXX_REFLECTION);
+  r.str("type_name", std::string(reflect::type_name<status>()));
+  r.num("enum_count", static_cast<long long>(reflect::enum_count<status>()));
+  r.str("name.timeout", std::string(reflect::enum_name(status::timeout)));
+  r.boolean("name.unmatched_empty",
+            reflect::enum_name(static_cast<status>(99)).empty());
+  auto cast = reflect::enum_cast<status>("denied");
+  r.boolean("cast.denied", cast && *cast == status::denied);
+  auto fs = reflect::failures<status>();
+  r.num("failures", static_cast<long long>(fs.size()));
+  erased_error e = reflect::as_erased(status::not_found);
+  r.str("erased.domain", std::string(e.domain_name()));
+  r.str("erased.message", std::string(e.message()));
+
+  // The derived metadata must match the sample enum's known shape, value-ordered, so
+  // the probe gates the layer's correctness on whichever path produced it.
+  bool ok = reflect::enum_name(status::timeout) == "timeout" &&
+            reflect::type_name<status>() == "status" &&
+            reflect::enum_count<status>() == 4 && fs.size() == 4 &&
+            fs[0].value == 0 && fs[0].name == "ok" && fs[3].value == 7 &&
+            fs[3].name == "denied" && std::string_view(e.domain_name()) == "status" &&
+            std::string_view(e.message()) == "not_found" &&
+            (cast && *cast == status::denied);
+  if (!ok) r.fail("reflection-derived metadata did not match the sample enum");
   return r.finish();
 }
 
@@ -1250,12 +1382,14 @@ int main(int argc, char** argv) {
   if (cmd == "policies") return probe_policies(fmt);
   if (cmd == "diagnostics") return probe_diagnostics(fmt);
   if (cmd == "interop") return probe_interop(fmt);
+  if (cmd == "reflect") return probe_reflect(fmt);
   if (cmd == "platform") return probe_platform(fmt);
   if (cmd == "unwind") return probe_unwind(fmt, rest);
   if (cmd == "codegen") return probe_codegen(fmt, rest);
   if (cmd == "release-diff") return probe_release_diff(fmt, rest);
   if (cmd == "size-delta") return probe_size_delta(fmt, rest);
   if (cmd == "compile-cost") return probe_compile_cost(fmt, rest);
+  if (cmd == "abi-layout") return probe_abi_layout(fmt, rest);
   if (cmd == "all") {
     int rc = 0;
     rc |= probe_size(fmt);
@@ -1266,13 +1400,14 @@ int main(int argc, char** argv) {
     rc |= probe_policies(fmt);
     rc |= probe_diagnostics(fmt);
     rc |= probe_interop(fmt);
+    rc |= probe_reflect(fmt);
     rc |= probe_platform(fmt);
     rc |= probe_unwind(fmt, {});
     return rc;
   }
   std::fprintf(stderr,
                "usage: jmpxx-verify <size|alloc|destructors|semantics|levels|"
-               "policies|diagnostics|interop|platform|unwind|all|codegen|"
-               "release-diff|size-delta|compile-cost> [--format=json]\n");
+               "policies|diagnostics|interop|reflect|platform|unwind|all|codegen|"
+               "release-diff|size-delta|compile-cost|abi-layout> [--format=json]\n");
   return 2;
 }
