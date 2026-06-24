@@ -43,7 +43,7 @@ between minor versions, each recorded in the change history. The frozen layouts 
 are the exception: they hold from v0.1.0 across the 0.x series, so an embedded
 consumer that stores a `jmpxx::error` or passes a `result<int, error>` across a
 compilation boundary can rely on the layout now rather than waiting for 1.0. A change
-to a frozen layout before 1.0 still requires a version bump and a migration note; it
+to a frozen layout before 1.0 still requires a version bump and a migration note. It
 is not made silently between patches.
 
 ## What the promise does not cover
@@ -52,7 +52,7 @@ Layout stability is not binary compatibility across mismatched toolchains. A
 header-only library instantiates its templates in the consumer's own translation
 unit, with the consumer's compiler, flags, and standard library, so two objects built
 with incompatible toolchains are incompatible regardless of this promise. What jmpxx
-fixes is the layout its own types take for a given target ABI; combining objects built
+fixes is the layout its own types take for a given target ABI. Combining objects built
 with different toolchains or standard-library versions is the consumer's
 compatibility concern, the same one every C++ library leaves to the consumer.
 

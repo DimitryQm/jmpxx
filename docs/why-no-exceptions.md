@@ -5,7 +5,7 @@ A large part of the C++ world builds with `-fno-exceptions`. Embedded firmware, 
 engines, robotics, real-time media, trading systems, simulation engines, networking and
 storage infrastructure, database internals, and WebAssembly runtimes all turn
 exceptions off, and they do it for reasons that are about cost and predictability rather
-than taste. Understanding those reasons is the fastest way to see what jmpxx is for.
+than taste. Those reasons are what jmpxx is built for.
 
 ## The costs they are avoiding
 
@@ -51,7 +51,7 @@ a zero-byte size delta, and a regression fails the build. See
 For code that can afford unwind tables and wants the intermediate frames to carry no
 propagation construct at all, the experimental [unwind arm](reference/unwind.md) offers
 the closest standard-C++ approach to a non-local jump that still runs destructors, with a
-sad-path cost it measures rather than hides. It is opt-in and never the default; the
+sad-path cost it measures rather than hides. It is opt-in and never the default. The
 portable surface above is the right choice for the strict no-exceptions niche.
 
 ## Not a replacement for exceptions everywhere

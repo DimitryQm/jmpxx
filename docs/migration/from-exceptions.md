@@ -48,8 +48,8 @@ a stray throw is a build error rather than a latent path.
 
 You gain a deterministic, inspectable failure path: a failure returns as an ordinary
 value with a cost you can read in the generated code, rather than an unwinder walk whose
-tail you cannot bound. You give up the zero-cost-until-thrown happy path of exceptions;
-on a non-inlined chain every frame that returns a `result` does a small amount of work an
+tail you cannot bound. You give up the zero-cost-until-thrown happy path of exceptions.
+On a non-inlined chain every frame that returns a `result` does a small amount of work an
 exception skips on success. [comparison.md](../comparison.md) states that trade with
 numbers. For code that wants the source-oblivious intermediate frames a throw gives,
 without the exception model, the experimental [unwind arm](../reference/unwind.md) is
@@ -58,7 +58,7 @@ the closest approach, at a sad-path cost it measures.
 ## A bug is not a failure
 
 Exceptions are sometimes used for programming errors as well as recoverable ones. jmpxx
-is for recoverable, expected failures only; a precondition violation or a broken
+is for recoverable, expected failures only. A precondition violation or a broken
 invariant is a bug for a contract or a termination to handle, not a failure to propagate.
 Route those to a checked termination, and reserve `result` for the failures a caller can
 sensibly act on.

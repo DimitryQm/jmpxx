@@ -5,7 +5,7 @@ The reflection layer derives error metadata from an enum so a program does not
 hand-maintain it. It is an optional, hosted extension reached by including
 `jmpxx/reflect.hpp`, it depends only on the error representations it derives metadata
 for, and nothing in the core requires it. Where C++26 static reflection is available it
-uses reflection; where it is not, a hand-written C++20 path parses the compiler's
+uses reflection. Where it is not, a hand-written C++20 path parses the compiler's
 function signature, and the two produce identical results. The surface is the same on
 both, so a program written against it builds and behaves the same on a C++20 toolchain
 and a reflection-capable one.
@@ -57,7 +57,7 @@ names. That removes the hand-written name table a component would otherwise main
 at the cost of the wording: `out_of_range` rather than a prose sentence, and a domain
 named for the enum's identifier. Name the enum for what the boundary should read. A
 component that wants prose, a specific domain name, or localized text writes its own
-`jmpxx::error_domain` instead; the reflection layer is the zero-maintenance path, not a
+`jmpxx::error_domain` instead. The reflection layer is the zero-maintenance path, not a
 replacement for a hand-authored one.
 
 ## The fallback's range
@@ -76,7 +76,7 @@ struct jmpxx::reflect::enum_range<my_wide_enum> {
 };
 ```
 
-The cost of the scan is proportional to the range, so the default is kept tight; the
+The cost of the scan is proportional to the range, so the default is kept tight, and the
 small error enums this layer is built for fall inside it. The reflection path has no
 such bound and ignores the trait. This range limit is the one behavioral difference
 between the two paths, and it does not arise for the enums the layer targets.

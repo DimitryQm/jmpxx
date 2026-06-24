@@ -45,14 +45,14 @@ JMPXX_TRY(value, step());
 ```
 
 For a trivially copyable `T` and `E`, `result<T, E>` is trivially copyable and returned
-in registers, where `std::expected`'s assignment operators make it non-trivial; the
+in registers, where `std::expected`'s assignment operators make it non-trivial. The
 happy path then generates the same code as a hand-written branch, proven by the codegen
 gate. A failure cannot be dropped without a compile-time diagnostic, which a bare
 `std::expected` does not enforce at the propagation site.
 
 ## What changes
 
-`result` carries a value or an error and nothing else; the monadic combinators
+`result` carries a value or an error and nothing else. The monadic combinators
 `and_then`, `or_else`, and `transform` are not part of its surface, because the
 propagation construct covers the case they are most used for. Keep `std::expected` where
 you rely on those combinators, and bridge at the seam. See [interop.md](../reference/interop.md).

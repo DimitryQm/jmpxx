@@ -66,7 +66,7 @@ def requirements(self):
 ```
 
 The CMake target is `jmpxx::jmpxx`. Conan does not propagate a compile-feature
-requirement to the consumer, so a consumer sets C++20 itself; the recipe rejects a
+requirement to the consumer, so a consumer sets C++20 itself. The recipe rejects a
 lower standard with a clear message rather than a compiler error from the headers.
 
 ## vcpkg
@@ -94,7 +94,7 @@ to drop one file in rather than add an include directory tree.
 #include <jmpxx.hpp>        // or <jmpxx-core.hpp> for the freestanding core
 ```
 
-The experimental unwind arm is not amalgamated; it stays the opt-in
+The experimental unwind arm is not amalgamated. It stays the opt-in
 `jmpxx/unwind.hpp` include, because it requires unwind tables and refuses a
 no-exceptions build. The single headers are generated from the modular headers by
 `packaging/amalgamate.py`, and a gate regenerates and diffs them, so a committed single

@@ -89,7 +89,7 @@ is recorded here with its migration impact.
 - The optional reflection forward layer, `jmpxx/reflect.hpp`, which derives error
   metadata from an enum: the enumerator name from a value and back, the static set of
   failures an error enum declares, and an `error_domain` whose per-value message is the
-  enumerator name. Where C++26 static reflection is available it uses reflection; where
+  enumerator name. Where C++26 static reflection is available it uses reflection. Where
   it is not, a hand-written C++20 path parses the compiler signature, and the two
   produce identical results. Nothing in the core requires it, and the full core builds
   with it absent on a C++20 toolchain. See

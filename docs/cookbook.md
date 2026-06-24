@@ -7,9 +7,9 @@ the code here is code that compiles and runs. Each recipe names its runnable sou
 
 ## Return a failure and propagate it
 
-A function that can fail returns `result<T>`; `fail` builds a failure; `JMPXX_TRY` binds
-the value on success and returns the failure to the caller otherwise. One landing point
-handles it, with no per-call check.
+A function that can fail returns `result<T>`. The `fail` helper builds a failure, and
+`JMPXX_TRY` binds the value on success and returns the failure to the caller otherwise.
+One landing point handles it, with no per-call check.
 
 ```cpp
 #include <jmpxx/core.hpp>
