@@ -20,9 +20,10 @@ find_package(jmpxx CONFIG REQUIRED)
 target_link_libraries(app PRIVATE jmpxx::jmpxx)
 ```
 
-The installed package version file declares `SameMajorVersion` compatibility, so
-`find_package(jmpxx 0)` accepts any 0.x release; see [abi.md](abi.md) for what that
-promises about type layout.
+The installed package version file declares `SameMinorVersion` compatibility, so while
+the project is at 0.x a request for `0.1` is satisfied by a 0.1.x release and rejected by
+0.2.0, matching the pre-1.0 contract that the surface may change between minor versions;
+see [abi.md](abi.md) for what that promises about type layout.
 
 ## FetchContent and add_subdirectory
 
@@ -71,13 +72,27 @@ lower standard with a clear message rather than a compiler error from the header
 
 ## vcpkg
 
-An overlay port ships under `packaging/vcpkg`. Install it without the central registry:
+An overlay port ships under `packaging/vcpkg`, so a vcpkg user installs jmpxx without
+waiting for the central registry:
 
 ```sh
 vcpkg install jmpxx --overlay-ports=packaging/vcpkg
 ```
 
-The port's source hash is set when a version is tagged.
+The port pins the tagged release and its source hash, installs the headers and the CMake
+package config through the standard header-only port flow, and exposes the same
+`jmpxx::jmpxx` target. When the version changes, the hash is recomputed for the new tag.
+
+## The central registries
+
+The Conan and vcpkg sections above install jmpxx today, from the in-repo recipe and the
+overlay port; neither waits on a central index. Listing in the central registries,
+ConanCenter and the vcpkg registry, is a separate step: each is a reviewed pull request to
+that registry's own repository, merged on its maintainers' schedule rather than instantly.
+The recipe and the port here are the artifacts those submissions carry, and the release
+tag and its source hash are pinned, so a submission is a matter of opening the pull request
+and addressing review. Until each lands, the channels above are the supported way to
+depend on jmpxx, and a listing changes the install command, not the library.
 
 ## Single-header amalgamation
 
