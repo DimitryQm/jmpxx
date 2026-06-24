@@ -26,6 +26,7 @@ jobs:
         # pulled two LLVM toolchains they never invoke (hundreds of megabytes). Each cell
         # now installs only its own compiler; g++-13 ships on the runner image.
         run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*
           sudo apt-get update
           case "${{ matrix.cxx }}" in
             g++-13)     COMPILER=g++-13 ;;
@@ -50,7 +51,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ninja-build clang-19
+      - run: sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*; sudo apt-get update && sudo apt-get install -y ninja-build clang-19
       - name: configure and build the core and interop under the C++26 dialect
         run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++-19 -DCMAKE_CXX_STANDARD=26 -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - run: cmake --build build
@@ -61,7 +62,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - run: sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*; sudo apt-get update && sudo apt-get install -y ninja-build
       - run: cmake --preset asan-ubsan -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - run: cmake --build --preset asan-ubsan
       - run: ctest --preset asan-ubsan
@@ -78,7 +79,7 @@ jobs:
           - { arch: armhf,   cxx: arm-linux-gnueabihf-g++-13, qemu: qemu-arm-static,   pkg: g++-13-arm-linux-gnueabihf }
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ${{ matrix.pkg }} qemu-user-static
+      - run: sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*; sudo apt-get update && sudo apt-get install -y ${{ matrix.pkg }} qemu-user-static
       - name: cross build and run the portable core under emulation
         run: |
           ${{ matrix.cxx }} -std=c++20 -O2 -static -Iinclude tests/freestanding/fs_core.cpp -o fs_core
@@ -159,7 +160,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - run: sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*; sudo apt-get update && sudo apt-get install -y ninja-build
       - name: install jmpxx
         run: |
           cmake -S . -B build -G Ninja -DJMPXX_BUILD_TESTS=OFF -DJMPXX_BUILD_VERIFY=OFF -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
@@ -178,7 +179,7 @@ jobs:
       # valgrind drives the deterministic instruction-count gate, Boost provides the Outcome and
       # LEAF incumbents, and the LLVM development packages build the companion check set. None is a
       # runtime dependency of the library; all are dev-only, used by this verification job.
-      - run: sudo apt-get update && sudo apt-get install -y ninja-build valgrind libboost-dev llvm-18-dev libclang-18-dev clang-tools-18
+      - run: sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*; sudo apt-get update && sudo apt-get install -y ninja-build valgrind libboost-dev llvm-18-dev libclang-18-dev clang-tools-18
       - name: build the benchmark and lint surfaces
         run: |
           cmake -S . -B build -G Ninja \
@@ -205,7 +206,7 @@ jobs:
             clang++ $FLAGS examples/reflection.cpp -o /tmp/rx && /tmp/rx'
       - name: confirm the C++20 cell builds the full core with the reflection layer absent
         run: |
-          sudo apt-get update && sudo apt-get install -y g++-13
+          sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*; sudo apt-get update && sudo apt-get install -y g++-13
           g++-13 -std=c++20 -fno-exceptions -fno-rtti -Iinclude -fsyntax-only examples/reflection.cpp
           g++-13 -std=c++20 -fno-exceptions -fno-rtti -Iinclude -fsyntax-only -c tests/freestanding/fs_core.cpp -o /dev/null
 
@@ -214,7 +215,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ninja-build pipx
+      - run: sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*; sudo apt-get update && sudo apt-get install -y ninja-build pipx
       - name: add_subdirectory and FetchContent channel
         run: |
           cmake -S packaging/consumers/subdir -B b_subdir -G Ninja -DJMPXX_ROOT="$PWD"
