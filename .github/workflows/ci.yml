@@ -21,7 +21,19 @@ jobs:
         std: ["20", "23"]
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y ninja-build clang-18 clang-19
+      - name: install ninja and only the compiler this cell uses
+        # This step installed clang-18 and clang-19 for every cell, so the g++-13 cells
+        # pulled two LLVM toolchains they never invoke (hundreds of megabytes). Each cell
+        # now installs only its own compiler; g++-13 ships on the runner image.
+        run: |
+          sudo apt-get update
+          case "${{ matrix.cxx }}" in
+            g++-13)     COMPILER=g++-13 ;;
+            clang++-18) COMPILER=clang-18 ;;
+            clang++-19) COMPILER=clang-19 ;;
+            *) echo "no package mapping for ${{ matrix.cxx }}"; exit 1 ;;
+          esac
+          sudo apt-get install -y ninja-build "$COMPILER"
       - name: configure
         # The benchmark and lint surfaces are exercised in the dedicated perf-and-lint job, which
         # provisions valgrind, Boost, and the LLVM development libraries; this matrix stays focused
