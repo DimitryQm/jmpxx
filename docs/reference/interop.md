@@ -45,7 +45,10 @@ Expose a jmpxx error. `jmpxx::to_error_code(error)` presents a `jmpxx::error` to
 error-code-based code as a `std::error_code` in a jmpxx-owned category, with the
 error's code as the value and its domain selecting the category, so the pair
 round-trips losslessly back through `jmpxx::from_error_code`. `jmpxx::make_error_code`
-is the same conversion under the name argument-dependent lookup finds.
+performs the same conversion under the conventional name. Both are explicit: jmpxx does
+not specialize `std::is_error_code_enum`, so `std::error_code ec = err;` does not compile,
+and a `jmpxx::error` is converted by calling `to_error_code` or `make_error_code`, which
+keeps the change of form visible.
 `jmpxx::error_category(domain)` returns the category for a domain, and
 `jmpxx::is_jmpxx(ec)` reports whether a code is in a jmpxx category.
 `from_error_code` recovers the code and domain exactly for a code in a jmpxx

@@ -808,6 +808,157 @@ class JMPXX_NODISCARD(
     return has_ ? static_cast<E>(static_cast<G&&>(alt)) : err_;
   }
 
+  // Monadic composition, matching std::expected (P2505). and_then and transform act on
+  // the value and pass a failure through unchanged; or_else and transform_error act on
+  // the error and pass a value through unchanged. The callable is invoked as f(value) or
+  // f(error) directly rather than through std::invoke, which keeps the core freestanding
+  // (no <functional>); a function, a lambda, or a function object works. For a
+  // result<void, E> the value-side callable takes no argument.
+
+  // and_then: f itself returns a result; chain it on the value, propagate the failure.
+  template <class F>
+  constexpr auto and_then(F&& f) & {
+    if constexpr (is_void) {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)())>;
+      return has_ ? static_cast<F&&>(f)() : U(fail(err_));
+    } else {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)(val_))>;
+      return has_ ? static_cast<F&&>(f)(val_) : U(fail(err_));
+    }
+  }
+  template <class F>
+  constexpr auto and_then(F&& f) const& {
+    if constexpr (is_void) {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)())>;
+      return has_ ? static_cast<F&&>(f)() : U(fail(err_));
+    } else {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)(val_))>;
+      return has_ ? static_cast<F&&>(f)(val_) : U(fail(err_));
+    }
+  }
+  template <class F>
+  constexpr auto and_then(F&& f) && {
+    if constexpr (is_void) {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)())>;
+      return has_ ? static_cast<F&&>(f)() : U(fail(detail::move(err_)));
+    } else {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)(detail::move(val_)))>;
+      return has_ ? static_cast<F&&>(f)(detail::move(val_)) : U(fail(detail::move(err_)));
+    }
+  }
+
+  // transform: f returns a plain value; map it into a new result, propagate the failure.
+  template <class F>
+  constexpr auto transform(F&& f) & {
+    if constexpr (is_void) {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)())>;
+      if constexpr (std::is_void_v<U>) {
+        if (has_) { static_cast<F&&>(f)(); return result<void, E>(); }
+        return result<void, E>(fail(err_));
+      } else {
+        return has_ ? result<U, E>(static_cast<F&&>(f)()) : result<U, E>(fail(err_));
+      }
+    } else {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)(val_))>;
+      if constexpr (std::is_void_v<U>) {
+        if (has_) { static_cast<F&&>(f)(val_); return result<void, E>(); }
+        return result<void, E>(fail(err_));
+      } else {
+        return has_ ? result<U, E>(static_cast<F&&>(f)(val_)) : result<U, E>(fail(err_));
+      }
+    }
+  }
+  template <class F>
+  constexpr auto transform(F&& f) const& {
+    if constexpr (is_void) {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)())>;
+      if constexpr (std::is_void_v<U>) {
+        if (has_) { static_cast<F&&>(f)(); return result<void, E>(); }
+        return result<void, E>(fail(err_));
+      } else {
+        return has_ ? result<U, E>(static_cast<F&&>(f)()) : result<U, E>(fail(err_));
+      }
+    } else {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)(val_))>;
+      if constexpr (std::is_void_v<U>) {
+        if (has_) { static_cast<F&&>(f)(val_); return result<void, E>(); }
+        return result<void, E>(fail(err_));
+      } else {
+        return has_ ? result<U, E>(static_cast<F&&>(f)(val_)) : result<U, E>(fail(err_));
+      }
+    }
+  }
+  template <class F>
+  constexpr auto transform(F&& f) && {
+    if constexpr (is_void) {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)())>;
+      if constexpr (std::is_void_v<U>) {
+        if (has_) { static_cast<F&&>(f)(); return result<void, E>(); }
+        return result<void, E>(fail(detail::move(err_)));
+      } else {
+        return has_ ? result<U, E>(static_cast<F&&>(f)())
+                    : result<U, E>(fail(detail::move(err_)));
+      }
+    } else {
+      using U = std::remove_cvref_t<decltype(static_cast<F&&>(f)(detail::move(val_)))>;
+      if constexpr (std::is_void_v<U>) {
+        if (has_) { static_cast<F&&>(f)(detail::move(val_)); return result<void, E>(); }
+        return result<void, E>(fail(detail::move(err_)));
+      } else {
+        return has_ ? result<U, E>(static_cast<F&&>(f)(detail::move(val_)))
+                    : result<U, E>(fail(detail::move(err_)));
+      }
+    }
+  }
+
+  // or_else: f returns a result on failure; pass a value through unchanged.
+  template <class F>
+  constexpr auto or_else(F&& f) & {
+    using G = std::remove_cvref_t<decltype(static_cast<F&&>(f)(err_))>;
+    if constexpr (is_void) return has_ ? G() : static_cast<F&&>(f)(err_);
+    else return has_ ? G(in_place, val_) : static_cast<F&&>(f)(err_);
+  }
+  template <class F>
+  constexpr auto or_else(F&& f) const& {
+    using G = std::remove_cvref_t<decltype(static_cast<F&&>(f)(err_))>;
+    if constexpr (is_void) return has_ ? G() : static_cast<F&&>(f)(err_);
+    else return has_ ? G(in_place, val_) : static_cast<F&&>(f)(err_);
+  }
+  template <class F>
+  constexpr auto or_else(F&& f) && {
+    using G = std::remove_cvref_t<decltype(static_cast<F&&>(f)(detail::move(err_)))>;
+    if constexpr (is_void) return has_ ? G() : static_cast<F&&>(f)(detail::move(err_));
+    else return has_ ? G(in_place, detail::move(val_)) : static_cast<F&&>(f)(detail::move(err_));
+  }
+
+  // transform_error: f returns a plain new error; map the error, pass a value through.
+  template <class F>
+  constexpr auto transform_error(F&& f) & {
+    using G = std::remove_cvref_t<decltype(static_cast<F&&>(f)(err_))>;
+    if constexpr (is_void)
+      return has_ ? result<void, G>() : result<void, G>(fail(static_cast<F&&>(f)(err_)));
+    else
+      return has_ ? result<T, G>(in_place, val_) : result<T, G>(fail(static_cast<F&&>(f)(err_)));
+  }
+  template <class F>
+  constexpr auto transform_error(F&& f) const& {
+    using G = std::remove_cvref_t<decltype(static_cast<F&&>(f)(err_))>;
+    if constexpr (is_void)
+      return has_ ? result<void, G>() : result<void, G>(fail(static_cast<F&&>(f)(err_)));
+    else
+      return has_ ? result<T, G>(in_place, val_) : result<T, G>(fail(static_cast<F&&>(f)(err_)));
+  }
+  template <class F>
+  constexpr auto transform_error(F&& f) && {
+    using G = std::remove_cvref_t<decltype(static_cast<F&&>(f)(detail::move(err_)))>;
+    if constexpr (is_void)
+      return has_ ? result<void, G>()
+                  : result<void, G>(fail(static_cast<F&&>(f)(detail::move(err_))));
+    else
+      return has_ ? result<T, G>(in_place, detail::move(val_))
+                  : result<T, G>(fail(static_cast<F&&>(f)(detail::move(err_))));
+  }
+
   friend constexpr bool operator==(const result& a, const result& b) {
     if (a.has_ != b.has_) return false;
     if (!a.has_) return a.err_ == b.err_;

@@ -50,9 +50,23 @@ happy path then generates the same code as a hand-written branch, proven by the 
 gate. A failure cannot be dropped without a compile-time diagnostic, which a bare
 `std::expected` does not enforce at the propagation site.
 
-## What changes
+## Monadic composition
 
-`result` carries a value or an error and nothing else. The monadic combinators
-`and_then`, `or_else`, and `transform` are not part of its surface, because the
-propagation construct covers the case they are most used for. Keep `std::expected` where
-you rely on those combinators, and bridge at the seam. See [interop.md](../reference/interop.md).
+`result` provides the same monadic combinators as `std::expected` (P2505), so a pipeline
+written against `std::expected` carries over unchanged:
+
+```cpp
+result<int, error> r = parse(text)
+    .transform([](int n) { return n * 2; })          // map the value
+    .and_then([](int n) { return validate(n); })     // chain a result-returning step
+    .or_else([](error e) { return recover(e); });    // handle the failure
+```
+
+`and_then`, `transform`, `or_else`, and `transform_error` match `std::expected`'s
+semantics across the value and error states, with the same lvalue, const, and rvalue
+overloads, and a `result<void, E>` invokes the value-side callable with no argument. The
+one difference is that jmpxx invokes the callable directly as `f(value)` rather than
+through `std::invoke`, which keeps the combinators in the freestanding core with no
+`<functional>` dependency; a function, a lambda, or a function object works. `JMPXX_TRY`
+remains the cheaper, exception-free path for straight-line propagation, and the
+combinators are there when a pipeline reads better. See [interop.md](../reference/interop.md).

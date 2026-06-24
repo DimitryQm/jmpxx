@@ -87,10 +87,14 @@ class erased_error {
 
   // Policy-uniform construction from a bare code, matching the minimal error's
   // shape so identical call-site source serves both policies. The second argument
-  // is the minimal error's coarse domain tag, folded into the value so no
-  // information the minimal policy carried is lost when the policy is switched.
-  // The tag and code share the generic domain's value space: a non-zero tag is
-  // kept in the high half so two errors that differ only by tag stay distinct.
+  // is the minimal error's coarse domain tag, folded into the value as
+  // code ^ (domain_tag << 16). The fold round-trips a code and a tag that each fit
+  // in 16 bits, which covers the common small-code case at no extra storage, but it
+  // is coarse, not lossless in general: a code that uses the high 16 bits can collide
+  // with a tagged code, for example erased_error(0, 1) and erased_error(65536, 0)
+  // both hold 65536. Code that must carry a full-width code and a distinct domain
+  // across a boundary names a domain descriptor through the (value, error_domain&)
+  // constructor below instead.
   constexpr explicit erased_error(int code, int domain_tag = 0) noexcept
       : value_(code ^ (domain_tag << 16)), domain_(&generic_domain()) {}
 

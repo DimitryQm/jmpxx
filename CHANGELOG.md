@@ -8,6 +8,28 @@ is recorded here with its migration impact.
 
 ## [Unreleased]
 
+### Added
+- Monadic combinators on `result<T, E>`: `and_then`, `or_else`, `transform`, and
+  `transform_error`, matching `std::expected` (P2505) across the value and error states,
+  with lvalue, const, and rvalue overloads and `void` value support. They stay in the
+  freestanding core: the callable is invoked directly, so they pull in no `<functional>`.
+
+### Changed
+- The experimental unwind arm reads an ejected error through `__builtin_bit_cast` rather
+  than a `reinterpret_cast`, which is defined by construction for the trivially copyable
+  error type and removes an object-lifetime subtlety. The builtin is used in place of
+  `std::bit_cast` so the arm needs no `<bit>`, which an older WebAssembly toolchain's
+  standard library does not provide.
+
+### Fixed
+- The `std::error_code` interop documentation no longer implies an implicit conversion:
+  jmpxx does not specialize `std::is_error_code_enum`, so `std::error_code ec = err;` does
+  not compile, and a `jmpxx::error` is converted explicitly with `to_error_code` or
+  `make_error_code`.
+- The `erased_error(code, domain_tag)` documentation now describes its fold honestly: it
+  round-trips a code and a tag that each fit in 16 bits, and is otherwise coarse and can
+  collide, so a boundary that needs full fidelity names a domain descriptor.
+
 ## [0.1.0] - 2026-06-24
 
 The first release. It delivers the value-or-error transport, single-construct

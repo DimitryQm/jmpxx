@@ -34,7 +34,7 @@ facility are compiled out, and `rich_error` becomes layout- and codegen-identica
 `jmpxx::error`.
 
 Use it where a developer benefits from learning where a failure began and how it
-travelled, and where the cost of that context in debug is acceptable and its absence
+traveled, and where the cost of that context in debug is acceptable and its absence
 in release is required. Selecting it changes no call site that the minimal policy
 uses; see [diagnostics.md](diagnostics.md) for the context surface and its bounds.
 
@@ -80,3 +80,24 @@ through one alias. The reference application defines `app::error` and
 selects the underlying type with a build flag, so every call site below the alias is
 identical across policies. Switching the flag rebuilds the same source under a
 different policy with no source change, verified by building one file twice.
+
+## Monadic composition
+
+`result<T, E>` carries the same monadic combinators as `std::expected` (P2505), so a
+value-or-error result composes in a pipeline as well as through `JMPXX_TRY`.
+
+- `and_then(f)` returns `f(value)` when a value is held and propagates the failure
+  otherwise. `f` returns a `result` whose error type accepts `E`.
+- `transform(f)` maps the value through `f` and wraps the returned value in a `result`,
+  propagating the failure. An `f` that returns `void` yields a `result<void, E>`.
+- `or_else(f)` returns `f(error)` when a failure is held and passes the value through.
+  `f` returns a `result` whose value type is `T`.
+- `transform_error(f)` maps the error through `f` and wraps it in a failure, passing the
+  value through.
+
+Each combinator has lvalue, const, and rvalue overloads, so the held value or error is
+forwarded by the value category of the call, and a `result<void, E>` invokes the
+value-side callable with no argument. The callable is invoked directly as `f(value)` or
+`f(error)` rather than through `std::invoke`, which keeps the combinators in the
+freestanding core with no `<functional>` dependency; a function, a lambda, or a function
+object works. The combinators are usable in constant evaluation.

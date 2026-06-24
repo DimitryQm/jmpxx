@@ -25,6 +25,17 @@ add_test(NAME static COMMAND jmpxx_static)
 add_test(NAME constexpr COMMAND jmpxx_constexpr)
 add_test(NAME property COMMAND jmpxx_property)
 
+# Monadic-ops tier: and_then/or_else/transform/transform_error match std::expected,
+# exercised over the three policies and in constant evaluation. Built in the niche
+# configuration (exceptions and RTTI off) on the compilers whose flags spell it.
+add_executable(jmpxx_monadic monadic/monadic_tests.cpp)
+target_link_libraries(jmpxx_monadic PRIVATE jmpxx::jmpxx)
+target_compile_options(jmpxx_monadic PRIVATE ${JMPXX_TEST_WARNINGS})
+if(NOT MSVC)
+  target_compile_options(jmpxx_monadic PRIVATE -fno-exceptions -fno-rtti)
+endif()
+add_test(NAME monadic COMMAND jmpxx_monadic)
+
 # Harness probes are observable capabilities run directly as tests.
 foreach(probe size alloc destructors semantics levels policies diagnostics interop reflect platform)
   add_test(NAME probe.${probe} COMMAND jmpxx-verify ${probe})

@@ -45,6 +45,10 @@ type: a minimal freestanding code, a rich error that carries a failure's origin 
 causal chain in debug, and a type-erased boundary error. Selecting a policy changes
 no call site.
 
+`result` also offers the `std::expected` monadic combinators `and_then`, `or_else`,
+`transform`, and `transform_error`, for code that prefers a pipeline to a sequence of
+`JMPXX_TRY` statements.
+
 ## What you get, and what proves it
 
 Every property below is enforced by a gate that fails the build when it breaks, and

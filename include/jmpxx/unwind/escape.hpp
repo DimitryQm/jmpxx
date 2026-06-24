@@ -18,6 +18,7 @@
 #include "jmpxx/platform/trap.hpp"
 #include "jmpxx/unwind/backend.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstring>
 #include <type_traits>
@@ -48,9 +49,14 @@ inline constexpr bool valid_error_type =
 // bytes eject stored are a valid E and need no default construction of E.
 template <class E>
 [[nodiscard]] inline E read_error(const carrier& car) noexcept {
-  alignas(payload_align) unsigned char raw[sizeof(E)];
-  std::memcpy(raw, car.error, sizeof(E));
-  return *reinterpret_cast<const E*>(raw);
+  // E is trivially copyable (valid_error_type), so a bit-cast turns the carried bytes
+  // back into an E with defined behavior and no aliasing or object-lifetime subtlety.
+  // __builtin_bit_cast is used rather than std::bit_cast so the arm needs no <bit>,
+  // which the older WebAssembly toolchain's libc++ does not provide; every supported
+  // compiler has the builtin, the same way the core already uses __builtin_addressof.
+  std::array<unsigned char, sizeof(E)> bytes;
+  std::memcpy(bytes.data(), car.error, sizeof(E));
+  return __builtin_bit_cast(E, bytes);
 }
 
 // Run the body in a frame distinct from the landing frame, returning the success
