@@ -9,7 +9,7 @@ abstract: >-
 type: software
 authors:
   - name: "DimitryQm"
-version: 0.1.0
+version: 0.1.1
 date-released: "2026-06-24"
 license: MIT
 repository-code: "https://github.com/DimitryQm/jmpxx"

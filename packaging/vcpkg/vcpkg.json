@@ -1,6 +1,6 @@
 {
   "name": "jmpxx",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Non-local, RAII-correct, exception-free failure propagation for C++20.",
   "homepage": "https://github.com/DimitryQm/jmpxx",
   "license": "MIT",

@@ -8,6 +8,8 @@ is recorded here with its migration impact.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-24
+
 ### Added
 - Monadic combinators on `result<T, E>`: `and_then`, `or_else`, `transform`, and
   `transform_error`, matching `std::expected` (P2505) across the value and error states,
@@ -155,5 +157,6 @@ common channel, each property backed by a gate checked against a known-bad input
   so a 0.1.x release satisfies a request for 0.1 and a 0.2.0 release does not, the honest
   contract for a library whose surface may change between 0.x minor versions.
 
-[Unreleased]: https://github.com/DimitryQm/jmpxx/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/DimitryQm/jmpxx/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/DimitryQm/jmpxx/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/DimitryQm/jmpxx/releases/tag/v0.1.0

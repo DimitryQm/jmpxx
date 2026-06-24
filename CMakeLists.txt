@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.20)
 project(jmpxx
-  VERSION 0.1.0
+  VERSION 0.1.1
   DESCRIPTION "Non-local, RAII-correct, exception-free failure propagation for C++"
   HOMEPAGE_URL "https://github.com/DimitryQm/jmpxx"
   LANGUAGES CXX)
