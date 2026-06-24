@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+# Resolvable reference interpolation: chains and multiple references per value.
+[values]
+greeting = "Hello, ${name}!"
+name     = "${first} ${last}"
+first    = "Ada"
+last     = "Lovelace"
+url      = "https://${host}:${port}/${path}"
+host     = "example.com"
+port     = "8080"
+path     = "api/${version}"
+version  = "v1"

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT
+[server]
+host = "localhost"
+port = 8080
+workers = 4
+
+[limits]
+max_connections = 1024
+timeout_ms = 30000
+
+[policy]
+access = '''{"mode":"strict","max_sessions":100,"allow":["10.0.0.0/8","192.168.0.0/16"]}'''

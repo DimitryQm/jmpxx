@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT
+[server]
+port = 8080
+workers = 4
+
+[limits]
+max_connections = 1024
+timeout_ms = 30000

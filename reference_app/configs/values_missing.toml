@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# A missing reference: ${name} is referenced but never defined.
+[values]
+greeting = "Hello, ${name}!"
+farewell = "Bye, ${name}."

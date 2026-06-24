@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+# The [server] and [limits] sections are valid; the [policy] access JSON is
+# malformed (max_sessions is not a number), so glaze reports a parse error that the
+# expected bridge delivers to the landing as a defined failure.
+[server]
+host = "localhost"
+port = 8080
+workers = 4
+
+[limits]
+max_connections = 1024
+timeout_ms = 30000
+
+[policy]
+access = '''{"mode":"strict","max_sessions":not_a_number,"allow":[]}'''

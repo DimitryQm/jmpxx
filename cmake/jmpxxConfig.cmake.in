@@ -1,0 +1,6 @@
+@PACKAGE_INIT@
+# SPDX-License-Identifier: MIT
+# Package configuration for jmpxx, a header-only library. Consumers write
+# find_package(jmpxx) and link jmpxx::jmpxx.
+include("${CMAKE_CURRENT_LIST_DIR}/jmpxxTargets.cmake")
+check_required_components(jmpxx)

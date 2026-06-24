@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT
+# A reference cycle: a -> b -> c -> a. Resolving any of them must escape and report a
+# cycle, and leave the resolver's state clean for the next key.
+[values]
+a = "prefix-${b}"
+b = "middle-${c}"
+c = "suffix-${a}"
