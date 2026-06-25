@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: MIT
-// The rich default policy (rich_error) and the debug-only diagnostic layer.
+// The rich default policy (rich_error) and its debug-only diagnostic layer.
 //
 // rich_error carries the same in-band code and domain as the minimal error; in a debug
 // build it also tags the failure with a handle into a per-thread out-of-band store
 // holding the origin and the causal chain, and in a release build it compiles down to
 // exactly the minimal error. That release identity is the dual-personality guarantee,
-// proven by the release codegen diff, not asserted here. The debug and release
+// verified by the release codegen diff, not asserted here. The debug and release
 // behavior, the lifetime rules, and the concurrency contract are in
 // docs/reference/diagnostics.md.
 //
-// This is a hosted extension: jmpxx/core.hpp never pulls it in, and it is selected by
-// policy at the error type with no change at the call sites. <source_location> and the
-// origin-capturing machinery are named only under JMPXX_DIAGNOSTICS_ENABLED, because a
-// source location materializes its file and function strings into the binary even where
-// the value is unused, so the only airtight way to keep release free of them is to not
-// name source_location there at all.
+// Hosted extension: jmpxx/core.hpp never pulls it in, and call sites select it only by
+// choosing the error type. <source_location> and the origin-capturing machinery are
+// named only under JMPXX_DIAGNOSTICS_ENABLED, because a source location materializes
+// its file and function strings into the binary even where the value is unused.
 #ifndef JMPXX_DIAGNOSTICS_HPP
 #define JMPXX_DIAGNOSTICS_HPP
 
@@ -48,7 +46,7 @@ class rich_error {
  public:
   // The in-band payload, named and laid out exactly as the minimal error, so a
   // landing that reads err.code and err.domain reads the same source under either
-  // policy. This is the field-level half of the one-source-many-policies guarantee.
+  // policy. The field names keep one source usable under every shipped policy.
   int code = 0;
   int domain = 0;
 
@@ -148,13 +146,15 @@ namespace diagnostic {
 // A read-only view of a failure's captured context, valid only while the owning
 // landing scope is alive. The pointers alias the thread-local store and must not be
 // retained past that scope. available is false when the handle was dropped on
-// overflow or already released, in which case the failure simply carries no context.
+// overflow or already released; in that case the failure carries no context.
 struct context {
   bool available;
   std::source_location origin;
   const std::source_location* hops;
   int hop_count;
   bool hops_truncated;
+  platform::trace trace;
+  bool trace_captured;
 };
 
 // Resolve a rich error's out-of-band context on the calling thread.
@@ -170,6 +170,13 @@ struct context {
   c.hops = r->hops;
   c.hop_count = r->hop_count;
   c.hops_truncated = r->hops_truncated;
+#if JMPXX_STACKTRACE
+  c.trace = r->trace;
+  c.trace_captured = !r->trace.empty();
+#else
+  c.trace = {};
+  c.trace_captured = false;
+#endif
   return c;
 }
 
@@ -198,6 +205,9 @@ inline void print(const rich_error& e, std::FILE* out) noexcept {
     std::fprintf(out, "  via:    %s:%u  %s\n", c.hops[i].file_name(),
                  c.hops[i].line(), c.hops[i].function_name());
   if (c.hops_truncated) std::fprintf(out, "  ... (chain truncated)\n");
+  if (c.trace_captured)
+    std::fprintf(out, "  trace:  %d raw frame%s\n", c.trace.count,
+                 c.trace.count == 1 ? "" : "s");
 #else
   (void)e;
   (void)out;

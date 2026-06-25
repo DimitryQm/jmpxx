@@ -66,11 +66,13 @@ undefined-behavior sanitizers.
 `jmpxx::diagnostic::inspect(const rich_error&)` returns a `context` valid only while
 the owning landing scope is alive. Its `available` field is false when the handle was
 dropped on overflow or already released, in which case the failure carries no
-context. When available it exposes the `origin`, a pointer to `hop_count` hops, and
-`hops_truncated`. The pointers alias the per-thread store and must not be retained
-past the landing scope. `jmpxx::diagnostic::chain_length(const rich_error&)` returns
-the hop count alone. `jmpxx::diagnostic::print(const rich_error&, std::FILE*)` writes
-the origin and each hop one per line, and is a no-op in a release build.
+context. When available it exposes the `origin`, a pointer to `hop_count` hops,
+`hops_truncated`, a raw `platform::trace`, and `trace_captured`. The pointers alias
+the per-thread store and must not be retained past the landing scope.
+`jmpxx::diagnostic::chain_length(const rich_error&)` returns the hop count alone.
+`jmpxx::diagnostic::print(const rich_error&, std::FILE*)` writes the origin and each
+hop one per line, prints the raw frame count when a trace was captured, and is a
+no-op in a release build.
 
 ## Concurrency
 
@@ -97,5 +99,6 @@ creation site, on a platform where a fenced capturer is available, behind
 `jmpxx/platform/trace.hpp`. It is off by default, captures addresses only without
 symbolizing, takes no lock, and allocates nothing. A platform without a fenced
 capturer returns an empty trace rather than an unverified one;
-`jmpxx::platform::trace_available()` reports which. Symbolizing the addresses is a
-separate, offline concern.
+`jmpxx::platform::trace_available()` reports which. `inspect` exposes the raw trace
+and `print` reports the captured frame count. Symbolizing the addresses is a separate,
+offline concern.
