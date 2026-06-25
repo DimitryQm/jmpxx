@@ -21,7 +21,7 @@ target_link_libraries(app PRIVATE jmpxx::jmpxx)
 ```
 
 The installed package version file declares `SameMinorVersion` compatibility, so while
-the project is at 0.x a request for `0.1` is satisfied by a 0.1.x release and rejected by
+jmpxx is at 0.x a request for `0.1` is satisfied by a 0.1.x release and rejected by
 0.2.0, matching the pre-1.0 contract that the surface may change between minor versions;
 see [abi.md](abi.md) for what that promises about type layout.
 
@@ -34,7 +34,7 @@ installed copy first, from one call:
 include(FetchContent)
 FetchContent_Declare(jmpxx
   GIT_REPOSITORY https://github.com/DimitryQm/jmpxx.git
-  GIT_TAG v0.1.1
+  GIT_TAG v0.1.2
   FIND_PACKAGE_ARGS NAMES jmpxx)
 FetchContent_MakeAvailable(jmpxx)
 target_link_libraries(app PRIVATE jmpxx::jmpxx)
@@ -48,7 +48,7 @@ not inherit them.
 ## CPM.cmake
 
 ```cmake
-CPMAddPackage("gh:DimitryQm/jmpxx@0.1.1")
+CPMAddPackage("gh:DimitryQm/jmpxx@0.1.2")
 target_link_libraries(app PRIVATE jmpxx::jmpxx)
 ```
 
@@ -63,7 +63,7 @@ conan create . -s compiler.cppstd=20
 
 ```python
 def requirements(self):
-    self.requires("jmpxx/0.1.1")
+    self.requires("jmpxx/0.1.2")
 ```
 
 The CMake target is `jmpxx::jmpxx`. Conan does not propagate a compile-feature

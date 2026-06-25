@@ -2,11 +2,37 @@
 # Changelog
 
 All notable user-facing changes to jmpxx are recorded here. The format follows
-Keep a Changelog, and the project follows semantic versioning. While the project
+Keep a Changelog, and jmpxx follows semantic versioning. While jmpxx
 is pre-1.0, the public surface may change between minor versions, and each change
 is recorded here with its migration impact.
 
 ## [Unreleased]
+
+## [0.1.2] - 2026-06-25
+
+### Added
+- Graded portable hardening through `JMPXX_HARDENING_MODE`, with
+  `JMPXX_HARDENING_NONE`, `JMPXX_HARDENING_FAST`, and
+  `JMPXX_HARDENING_EXTENSIVE`. The previous `JMPXX_HARDENED` switch remains
+  source-compatible: `0` maps to none and any nonzero value maps to fast.
+- A hardening reference page that documents the modes, their defaults, and the
+  difference between recoverable errors and contract violations.
+- Adversarial verification gates over the portable surface: structured fuzz,
+  libFuzzer, AFL++, a differential oracle, exception-safety throw matrices, a
+  configuration cross-product, MemorySanitizer with an instrumented libc++, Clang
+  static analyzer coverage, source mutation testing, an adversarial region and
+  branch coverage floor, and a model-based lifecycle tier. Each gate has an
+  inverted known-bad case.
+- `diagnostic::context` now exposes a raw `platform::trace` and `trace_captured`
+  when stack-trace capture is enabled, so code using `inspect` can read the same
+  trace information that `diagnostic::print` reports.
+
+### Changed
+- Extensive hardening validates the type-erased error domain before dispatch, so a
+  corrupted erased boundary fails fast instead of dereferencing a null domain.
+- The public platform detection surface now reports `JMPXX_HAS_RTTI`, allowing the
+  configuration matrix and consumers to state RTTI status without reading compiler
+  macros directly.
 
 ## [0.1.1] - 2026-06-24
 
@@ -34,129 +60,64 @@ is recorded here with its migration impact.
 
 ## [0.1.0] - 2026-06-24
 
-The first release. It delivers the value-or-error transport, single-construct
-propagation to a typed landing, the three representation policies over one transport,
-the debug-only diagnostic layer that is free in release, the interop bridges, the
-experimental opt-in unwind arm across four ABIs, the optional reflection layer, the
-verification harness with its gates, the lint companion, and distribution through every
-common channel, each property backed by a gate checked against a known-bad input.
+Initial release of the core transport, propagation surface, policy set, verification
+tools, lint companion, packaging channels, and reference documentation. The release
+freezes the documented layout subset from v0.1.0 and keeps the experimental unwind arm
+explicitly opt-in.
 
 ### Added
-- The value-or-failure transport: a return type that carries either a produced
-  value or a failure, holds exactly one of the two across construction,
-  assignment, move, and copy, and never presents an observable valueless state.
-  A trivially copyable value and error yield a trivially copyable transport, the
-  transport is usable in constant evaluation, and a failure cannot be discarded
-  without a compile-time diagnostic.
-- The minimal representation policy: a freestanding, heap-free error
-  representation that collapses toward a bare code and compiles with exceptions
-  and RTTI disabled.
-- The rich representation policy and the diagnostic layer: an error that carries
-  a failure's origin and the causal chain it accumulates as it propagates, held
-  out of band. The context is present in a debug build and compiled out of a
-  release build, where the rich policy's generated code is identical to the
-  minimal policy's, proven by a release codegen diff with teeth. The store is
-  per-thread and allocates nothing, and a landing scope bounds the lifetime of
-  the context it owns. Reading the context uses `jmpxx::diagnostic::inspect` and
-  `jmpxx::diagnostic::print`.
-- The type-erased representation policy: a domain-tagged error usable at a
-  component boundary by code that does not know the originating error category,
-  with no RTTI and no heap allocation.
-- One transport and one set of propagation sites serve all three policies, so a
-  program selects a policy at its error type with no change at the call sites. An
-  optional, off-by-default stack-trace capture is fenced behind the platform
-  abstraction. Each policy header is self-contained: including `jmpxx/diagnostics.hpp`
-  or `jmpxx/erased.hpp` pulls in the core transport, so a policy is usable from its
-  own header.
-- Single-construct propagation: a failure propagates from arbitrary call depth to
-  a single typed landing boundary with one source-level construct, running every
-  destructor on the path exactly once, with the cost of each propagation level
-  stated and proven.
-- Interoperability bridges so a codebase already written against the standard
-  error vocabularies adopts jmpxx at a seam. The `std::expected` bridge converts
-  `result` to and from `std::expected` losslessly and stays usable in a
-  freestanding, no-exceptions build. The `std::error_code` bridge carries a foreign
-  code verbatim and exposes a jmpxx error as a code in a jmpxx category that
-  round-trips. The opt-in exception bridge converts between a failure and a thrown
-  exception where exceptions are enabled and is absent otherwise. The `from_optional`
-  and `from_condition` adapters collapse the optional-like and boolean-plus-value
-  boundaries of other libraries into one call. See
+- The value-or-failure transport, including exactly-one state, constexpr use,
+  trivial-copyability preservation for trivial payloads, and `[[nodiscard]]`
+  diagnostics for discarded failures.
+- The minimal, rich, and type-erased error policies over one transport and one
+  propagation form. The rich policy carries debug context out of band, is identical
+  to the minimal policy in release, and exposes `diagnostic::inspect` and
+  `diagnostic::print`; the type-erased policy gives component boundaries a domain-tagged
+  error without RTTI or heap allocation.
+- Single-construct propagation with `JMPXX_TRY`, from arbitrary call depth to one typed
+  landing boundary, with destructor execution and propagation-level costs covered by
+  the verification reference.
+- Interop bridges for `std::expected`, `std::error_code`, optional-like boundaries,
+  boolean-plus-value boundaries, and opt-in exception crossings. The `std::expected`
+  bridge stays usable in a freestanding, no-exceptions build; the exception bridge is
+  present only when exceptions are enabled. See
   [docs/reference/interop.md](docs/reference/interop.md).
-- Validation of untrusted input at a bridge boundary, so malformed input yields a
-  defined failure rather than undefined behavior, checked by a behavioral tier under
-  the sanitizers and a bounded libFuzzer tier.
-- An experimental, opt-in non-local unwind arm that returns a failure from arbitrary
-  call depth to a single landing boundary while the platform unwinder runs every
-  destructor on the path, so the intermediate frames carry no propagation construct.
-  It requires unwind cleanup tables and refuses a no-exceptions configuration at
-  compile time, is reached only through `jmpxx/unwind.hpp`, and is never on a default
-  path. Its sad path is measured and gated for determinism. It runs on the Itanium and
-  DWARF interface, the ARM exception-handling ABI including a bare-metal target,
-  WebAssembly, and the Windows structured-exception ABI. The catch-all, `noexcept`, and
-  unwind-tables caveats are stated at its surface. See
+- Boundary-input validation checks, sanitizer tiers, and fuzz targets for malformed
+  bridge input.
+- The experimental `jmpxx/unwind.hpp` arm: an opt-in non-local escape that requires
+  unwind cleanup tables, refuses `-fno-exceptions`, runs destructors through the
+  platform unwinder, measures and gates the sad path, and documents the catch-all,
+  `noexcept`, and table caveats across the supported ABIs. See
   [docs/reference/unwind.md](docs/reference/unwind.md).
-- A platform abstraction that fences every target-specific and ABI-specific
-  construct behind one unit and exposes the build's compiler, operating system, and
-  architecture, enforced by a static scan. See
+- The platform abstraction and static platform-fence scan for compiler, operating
+  system, architecture, and ABI-specific constructs. See
   [docs/reference/platform.md](docs/reference/platform.md).
-- `jmpxx-verify`: the verification harness that compiles fixtures, emits and
-  diffs optimized machine code against committed goldens, and reports transport
-  size and allocation counts in human-readable and machine-readable form.
-- The distribution benchmark suite, `jmpxx-bench`, which drives one error-propagation
-  kernel implemented identically for jmpxx, a hand-written branch, `std::expected`,
-  a threaded `std::error_code`, language exceptions, Boost.Outcome, Boost.LEAF, and
-  tl::expected, and reports each mechanism's per-call latency by median and high
-  percentile across a failure-ratio and a depth sweep. The honest comparison, which
-  states where jmpxx loses as plainly as where it wins, is in
+- `jmpxx-verify`, `jmpxx-bench`, the binary-size, compile-cost, perf, codegen,
+  allocation, ABI-layout, doc-claim, and acceptance gates, each paired with a
+  known-bad input where it is a gate. See
+  [docs/reference/verification.md](docs/reference/verification.md) and
   [docs/comparison.md](docs/comparison.md).
-- The binary-size-delta, compile-cost, and perf gates as continuous gates with teeth.
-  The size gate proves the library adds zero bytes over a hand-written branch in the
-  ship configuration; the compile-cost gate bounds the template-instantiation count,
-  a deterministic metric; the perf gate bounds jmpxx against a co-measured baseline,
-  and a deterministic callgrind instruction count proves the happy path executes the
-  same instructions as the hand-written branch. Each gate fails a known-bad input. See
-  [docs/reference/verification.md](docs/reference/verification.md).
-- The companion check set, `jmpxx-lint`, an out-of-tree Clang tool that flags a
-  discarded result, a value taken through a narrow accessor without a success check,
-  and a hand-written failure forward that `JMPXX_TRY` would express. It is a developer
-  tool, never a runtime or include dependency. See
+- `jmpxx-lint`, an out-of-tree Clang companion that flags discarded results,
+  unchecked narrow access, and manual failure forwarding. See
   [docs/reference/lint.md](docs/reference/lint.md).
-- The optional reflection forward layer, `jmpxx/reflect.hpp`, which derives error
-  metadata from an enum: the enumerator name from a value and back, the static set of
-  failures an error enum declares, and an `error_domain` whose per-value message is the
-  enumerator name. Where C++26 static reflection is available it uses reflection. Where
-  it is not, a hand-written C++20 path parses the compiler signature, and the two
-  produce identical results. Nothing in the core requires it, and the full core builds
-  with it absent on a C++20 toolchain. See
+- The optional reflection forward layer, `jmpxx/reflect.hpp`, deriving enum names,
+  value casts, failure sets, and enum-backed error domains through C++26 reflection
+  where available and a C++20 fallback otherwise. See
   [docs/reference/reflect.md](docs/reference/reflect.md).
-- Distribution through every common channel: a CMake package for `find_package`, the
-  same definition usable through FetchContent, `add_subdirectory`, and CPM, an in-repo
-  Conan recipe, a vcpkg overlay port, and two generated single-header amalgamations, a
-  freestanding `jmpxx-core.hpp` and a full hosted `jmpxx.hpp`. The single headers are
-  regenerated and diffed by a gate so they cannot drift, and a consumer is built through
-  each channel. See [docs/reference/packaging.md](docs/reference/packaging.md).
-- An ABI layout gate that freezes the observable layout of the public types, their size,
-  alignment, field offsets, and trivial copyability, within a major version, with the
-  experimental arm exempt until graduated. A static tier pins the layout on every cell
-  and a golden gate catches an unversioned change, with teeth. See
-  [docs/reference/abi.md](docs/reference/abi.md).
-- Documentation for adoption: the orientation on why the audience disables exceptions,
-  a task-oriented cookbook drawn from the examples, migration guides from
-  `std::expected`, `std::error_code`, and exceptions, and a set of public examples that
-  build and run as tests.
-- An `SPDX-License-Identifier: MIT` tag on every source file; the project is
-  MIT-licensed with the full text in `LICENSE`.
-- `JMPXX_VERSION` and `JMPXX_VERSION_STRING`: a combined integer and a string version
-  for a one-line consumer check such as `#if JMPXX_VERSION >= 100`, alongside the
-  existing `JMPXX_VERSION_MAJOR`, `_MINOR`, and `_PATCH` macros.
-- An acceptance sweep, `verify/acceptance.py`, that runs every test tier and every gate
-  over a built tree, pairs each gate with its inverted self-test, and prints one
-  machine-readable release verdict. A gate with no passing inverted self-test fails the
-  verdict. See [docs/reference/verification.md](docs/reference/verification.md).
-- A `find_package(jmpxx)` version file that accepts a matching major and minor version,
-  so a 0.1.x release satisfies a request for 0.1 and a 0.2.0 release does not, the honest
-  contract for a library whose surface may change between 0.x minor versions.
+- Packaging through `find_package`, FetchContent, `add_subdirectory`, CPM, Conan, a
+  vcpkg overlay port, and generated `jmpxx-core.hpp` and `jmpxx.hpp` single headers.
+  The CMake version file uses matching major and minor compatibility while jmpxx is
+  below 1.0. See [docs/reference/packaging.md](docs/reference/packaging.md).
+- ABI layout checks for the frozen public layout subset, including size, alignment,
+  field offsets, and trivial copyability, with the experimental unwind arm exempt until
+  it graduates. See [docs/reference/abi.md](docs/reference/abi.md).
+- Documentation for adoption: the no-exceptions orientation, cookbook, migration
+  guides, public examples, and the reference application.
+- `JMPXX_VERSION`, `JMPXX_VERSION_STRING`, and the major, minor, and patch component
+  macros for consumer version checks.
+- SPDX license tags on source files and the MIT license text in `LICENSE`.
 
-[Unreleased]: https://github.com/DimitryQm/jmpxx/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/DimitryQm/jmpxx/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/DimitryQm/jmpxx/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/DimitryQm/jmpxx/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/DimitryQm/jmpxx/releases/tag/v0.1.0
