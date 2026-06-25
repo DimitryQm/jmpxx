@@ -35,13 +35,13 @@
 
 // from jmpxx/platform/detect.hpp
 // SPDX-License-Identifier: MIT
-// Platform, architecture, and compiler detection: the one place the engine reads
-// the compiler's predefined macros. Every other header asks for a target fact
+// Platform, architecture, and compiler detection: the only place the library reads
+// compiler predefined macros. Every other header asks for a target fact
 // through the JMPXX_COMPILER_*, JMPXX_OS_*, and JMPXX_ARCH_* tokens defined here,
 // so a raw `_MSC_VER`, `__x86_64__`, or `_WIN32` appearing anywhere outside this
 // platform unit is a fence violation the platform-fence scan rejects. Centralizing
-// detection is what makes that fence enforceable rather than asserted, and it gives
-// the later experimental unwind arm one stable place to ask which ABI it is on.
+// detection makes that fence enforceable and gives the experimental unwind arm one
+// stable place to ask which ABI it is on.
 //
 // This header pulls in no standard library header and uses only the preprocessor,
 // so it is freestanding and is safe on the minimal core's include path.
@@ -89,6 +89,14 @@
 #define JMPXX_HAS_EXCEPTIONS 0
 #endif
 
+// Whether RTTI is enabled in this translation unit. Type-erased dispatch must not
+// rely on it, but the configuration matrix records the dimension explicitly.
+#if defined(__GXX_RTTI) || defined(__cpp_rtti) || defined(_CPPRTTI)
+#define JMPXX_HAS_RTTI 1
+#else
+#define JMPXX_HAS_RTTI 0
+#endif
+
 // Operating system and environment. At most one hosted OS is 1. A freestanding or
 // bare-metal target matches none of them and is reported by JMPXX_OS_NONE, and
 // JMPXX_OS_HOSTED is the union so a header can ask "is there an OS here" without
@@ -100,7 +108,7 @@
 #endif
 
 // __APPLE__ with __MACH__ is Darwin, the kernel under macOS and the other Apple
-// systems; the engine treats them as one OS cell.
+// systems; jmpxx treats them as one OS cell.
 #if defined(__APPLE__) && defined(__MACH__)
 #define JMPXX_OS_MACOS 1
 #else
@@ -166,7 +174,7 @@
 
 #define JMPXX_VERSION_MAJOR 0
 #define JMPXX_VERSION_MINOR 1
-#define JMPXX_VERSION_PATCH 1
+#define JMPXX_VERSION_PATCH 2
 
 // A single comparable integer, major*10000 + minor*100 + patch, so a consumer can
 // gate on a version in one line: #if JMPXX_VERSION >= 200. The scheme caps minor and
@@ -243,17 +251,53 @@
 #define JMPXX_UNLIKELY(x) (static_cast<bool>(x))
 #endif
 
-// hardening switch. JMPXX_HARDENED=1 makes the narrow-contract accessors
-// (assume_value / assume_error) check their precondition and fail fast on
-// violation; the wide accessors (value / error) check unconditionally regardless
-// of this switch. Default: on unless NDEBUG is set. Override with -DJMPXX_HARDENED.
-#if !defined(JMPXX_HARDENED)
-#if defined(NDEBUG)
-#define JMPXX_HARDENED 0
+// Hardening mode. The vocabulary follows the standard-library hardening names:
+// none removes narrow-contract checks, fast checks the narrow value/error accessors,
+// and extensive also validates defensive boundary invariants before dispatch. The
+// old binary JMPXX_HARDENED switch remains source-compatible: 0 maps to none, any
+// nonzero value maps to fast, and a consumer that only reads JMPXX_HARDENED still
+// sees 0 or 1.
+#define JMPXX_HARDENING_NONE 0
+#define JMPXX_HARDENING_FAST 1
+#define JMPXX_HARDENING_EXTENSIVE 2
+
+#if !defined(JMPXX_HARDENING_MODE)
+#if defined(JMPXX_HARDENED)
+#if JMPXX_HARDENED
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_FAST
 #else
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_NONE
+#endif
+#elif defined(NDEBUG)
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_NONE
+#else
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_FAST
+#endif
+#endif
+
+#if JMPXX_HARDENING_MODE != JMPXX_HARDENING_NONE && \
+    JMPXX_HARDENING_MODE != JMPXX_HARDENING_FAST && \
+    JMPXX_HARDENING_MODE != JMPXX_HARDENING_EXTENSIVE
+#error "JMPXX_HARDENING_MODE must be JMPXX_HARDENING_NONE, JMPXX_HARDENING_FAST, or JMPXX_HARDENING_EXTENSIVE."
+#endif
+
+#if defined(JMPXX_HARDENED)
+#if (JMPXX_HARDENED && JMPXX_HARDENING_MODE < JMPXX_HARDENING_FAST) || \
+    (!JMPXX_HARDENED && JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST)
+#error "JMPXX_HARDENED conflicts with JMPXX_HARDENING_MODE."
+#endif
+#else
+#if JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST
 #define JMPXX_HARDENED 1
+#else
+#define JMPXX_HARDENED 0
 #endif
 #endif
+
+#define JMPXX_HARDENING_FAST_ENABLED \
+  (JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST)
+#define JMPXX_HARDENING_EXTENSIVE_ENABLED \
+  (JMPXX_HARDENING_MODE >= JMPXX_HARDENING_EXTENSIVE)
 
 // diagnostic-layer switch. JMPXX_DIAGNOSTICS_ENABLED=1 turns on the debug-only
 // diagnostic layer: the rich policy captures a failure's origin and the causal
@@ -331,7 +375,7 @@ struct error {
 
 // from jmpxx/core/diagnostic_hook.hpp
 // SPDX-License-Identifier: MIT
-// The propagation diagnostic seam. Single-construct propagation calls
+// The propagation diagnostic hook. Single-construct propagation calls
 // note_propagation on the failure path so a hosted diagnostic layer can record a
 // causal hop as a failure travels toward its landing boundary. The core ships
 // only the no-op default here: it compiles to nothing, pulls in no hosted header,
@@ -342,7 +386,7 @@ struct error {
 //
 // The hook is reached only through the propagation macros, and only when
 // JMPXX_DIAGNOSTICS_ENABLED is on; the macros expand it to nothing otherwise. It
-// lives in detail because it is an internal seam, not a caller-facing entry point.
+// lives in detail because it is an internal hook, not a caller-facing entry point.
 #ifndef JMPXX_CORE_DIAGNOSTIC_HOOK_HPP
 #define JMPXX_CORE_DIAGNOSTIC_HOOK_HPP
 
@@ -729,30 +773,30 @@ class JMPXX_NODISCARD(
     return detail::move(err_);
   }
 
-  // Narrow access: the precondition is that the corresponding state holds. It
-  // is verified only in a hardened build; otherwise it is the caller's contract.
+  // Narrow access: the precondition is that the corresponding state holds. Fast
+  // hardening and above verify it; otherwise it is the caller's contract.
   constexpr decltype(auto) assume_value() & noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return (val_);
   }
   constexpr decltype(auto) assume_value() const& noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return (val_);
   }
   constexpr decltype(auto) assume_value() && noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return detail::move(val_);
   }
   constexpr E& assume_error() & noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return err_;
   }
   constexpr const E& assume_error() const& noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return err_;
   }
   constexpr E&& assume_error() && noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return detail::move(err_);
   }
 

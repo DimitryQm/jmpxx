@@ -35,13 +35,13 @@
 
 // from jmpxx/platform/detect.hpp
 // SPDX-License-Identifier: MIT
-// Platform, architecture, and compiler detection: the one place the engine reads
-// the compiler's predefined macros. Every other header asks for a target fact
+// Platform, architecture, and compiler detection: the only place the library reads
+// compiler predefined macros. Every other header asks for a target fact
 // through the JMPXX_COMPILER_*, JMPXX_OS_*, and JMPXX_ARCH_* tokens defined here,
 // so a raw `_MSC_VER`, `__x86_64__`, or `_WIN32` appearing anywhere outside this
 // platform unit is a fence violation the platform-fence scan rejects. Centralizing
-// detection is what makes that fence enforceable rather than asserted, and it gives
-// the later experimental unwind arm one stable place to ask which ABI it is on.
+// detection makes that fence enforceable and gives the experimental unwind arm one
+// stable place to ask which ABI it is on.
 //
 // This header pulls in no standard library header and uses only the preprocessor,
 // so it is freestanding and is safe on the minimal core's include path.
@@ -89,6 +89,14 @@
 #define JMPXX_HAS_EXCEPTIONS 0
 #endif
 
+// Whether RTTI is enabled in this translation unit. Type-erased dispatch must not
+// rely on it, but the configuration matrix records the dimension explicitly.
+#if defined(__GXX_RTTI) || defined(__cpp_rtti) || defined(_CPPRTTI)
+#define JMPXX_HAS_RTTI 1
+#else
+#define JMPXX_HAS_RTTI 0
+#endif
+
 // Operating system and environment. At most one hosted OS is 1. A freestanding or
 // bare-metal target matches none of them and is reported by JMPXX_OS_NONE, and
 // JMPXX_OS_HOSTED is the union so a header can ask "is there an OS here" without
@@ -100,7 +108,7 @@
 #endif
 
 // __APPLE__ with __MACH__ is Darwin, the kernel under macOS and the other Apple
-// systems; the engine treats them as one OS cell.
+// systems; jmpxx treats them as one OS cell.
 #if defined(__APPLE__) && defined(__MACH__)
 #define JMPXX_OS_MACOS 1
 #else
@@ -166,7 +174,7 @@
 
 #define JMPXX_VERSION_MAJOR 0
 #define JMPXX_VERSION_MINOR 1
-#define JMPXX_VERSION_PATCH 1
+#define JMPXX_VERSION_PATCH 2
 
 // A single comparable integer, major*10000 + minor*100 + patch, so a consumer can
 // gate on a version in one line: #if JMPXX_VERSION >= 200. The scheme caps minor and
@@ -243,17 +251,53 @@
 #define JMPXX_UNLIKELY(x) (static_cast<bool>(x))
 #endif
 
-// hardening switch. JMPXX_HARDENED=1 makes the narrow-contract accessors
-// (assume_value / assume_error) check their precondition and fail fast on
-// violation; the wide accessors (value / error) check unconditionally regardless
-// of this switch. Default: on unless NDEBUG is set. Override with -DJMPXX_HARDENED.
-#if !defined(JMPXX_HARDENED)
-#if defined(NDEBUG)
-#define JMPXX_HARDENED 0
+// Hardening mode. The vocabulary follows the standard-library hardening names:
+// none removes narrow-contract checks, fast checks the narrow value/error accessors,
+// and extensive also validates defensive boundary invariants before dispatch. The
+// old binary JMPXX_HARDENED switch remains source-compatible: 0 maps to none, any
+// nonzero value maps to fast, and a consumer that only reads JMPXX_HARDENED still
+// sees 0 or 1.
+#define JMPXX_HARDENING_NONE 0
+#define JMPXX_HARDENING_FAST 1
+#define JMPXX_HARDENING_EXTENSIVE 2
+
+#if !defined(JMPXX_HARDENING_MODE)
+#if defined(JMPXX_HARDENED)
+#if JMPXX_HARDENED
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_FAST
 #else
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_NONE
+#endif
+#elif defined(NDEBUG)
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_NONE
+#else
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_FAST
+#endif
+#endif
+
+#if JMPXX_HARDENING_MODE != JMPXX_HARDENING_NONE && \
+    JMPXX_HARDENING_MODE != JMPXX_HARDENING_FAST && \
+    JMPXX_HARDENING_MODE != JMPXX_HARDENING_EXTENSIVE
+#error "JMPXX_HARDENING_MODE must be JMPXX_HARDENING_NONE, JMPXX_HARDENING_FAST, or JMPXX_HARDENING_EXTENSIVE."
+#endif
+
+#if defined(JMPXX_HARDENED)
+#if (JMPXX_HARDENED && JMPXX_HARDENING_MODE < JMPXX_HARDENING_FAST) || \
+    (!JMPXX_HARDENED && JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST)
+#error "JMPXX_HARDENED conflicts with JMPXX_HARDENING_MODE."
+#endif
+#else
+#if JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST
 #define JMPXX_HARDENED 1
+#else
+#define JMPXX_HARDENED 0
 #endif
 #endif
+
+#define JMPXX_HARDENING_FAST_ENABLED \
+  (JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST)
+#define JMPXX_HARDENING_EXTENSIVE_ENABLED \
+  (JMPXX_HARDENING_MODE >= JMPXX_HARDENING_EXTENSIVE)
 
 // diagnostic-layer switch. JMPXX_DIAGNOSTICS_ENABLED=1 turns on the debug-only
 // diagnostic layer: the rich policy captures a failure's origin and the causal
@@ -331,7 +375,7 @@ struct error {
 
 // from jmpxx/core/diagnostic_hook.hpp
 // SPDX-License-Identifier: MIT
-// The propagation diagnostic seam. Single-construct propagation calls
+// The propagation diagnostic hook. Single-construct propagation calls
 // note_propagation on the failure path so a hosted diagnostic layer can record a
 // causal hop as a failure travels toward its landing boundary. The core ships
 // only the no-op default here: it compiles to nothing, pulls in no hosted header,
@@ -342,7 +386,7 @@ struct error {
 //
 // The hook is reached only through the propagation macros, and only when
 // JMPXX_DIAGNOSTICS_ENABLED is on; the macros expand it to nothing otherwise. It
-// lives in detail because it is an internal seam, not a caller-facing entry point.
+// lives in detail because it is an internal hook, not a caller-facing entry point.
 #ifndef JMPXX_CORE_DIAGNOSTIC_HOOK_HPP
 #define JMPXX_CORE_DIAGNOSTIC_HOOK_HPP
 
@@ -729,30 +773,30 @@ class JMPXX_NODISCARD(
     return detail::move(err_);
   }
 
-  // Narrow access: the precondition is that the corresponding state holds. It
-  // is verified only in a hardened build; otherwise it is the caller's contract.
+  // Narrow access: the precondition is that the corresponding state holds. Fast
+  // hardening and above verify it; otherwise it is the caller's contract.
   constexpr decltype(auto) assume_value() & noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return (val_);
   }
   constexpr decltype(auto) assume_value() const& noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return (val_);
   }
   constexpr decltype(auto) assume_value() && noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return detail::move(val_);
   }
   constexpr E& assume_error() & noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return err_;
   }
   constexpr const E& assume_error() const& noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return err_;
   }
   constexpr E&& assume_error() && noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return detail::move(err_);
   }
 
@@ -1109,22 +1153,20 @@ template <class Body>
 #endif  // JMPXX_CORE_HPP
 // from jmpxx/diagnostics.hpp
 // SPDX-License-Identifier: MIT
-// The rich default policy (rich_error) and the debug-only diagnostic layer.
+// The rich default policy (rich_error) and its debug-only diagnostic layer.
 //
 // rich_error carries the same in-band code and domain as the minimal error; in a debug
 // build it also tags the failure with a handle into a per-thread out-of-band store
 // holding the origin and the causal chain, and in a release build it compiles down to
 // exactly the minimal error. That release identity is the dual-personality guarantee,
-// proven by the release codegen diff, not asserted here. The debug and release
+// verified by the release codegen diff, not asserted here. The debug and release
 // behavior, the lifetime rules, and the concurrency contract are in
 // docs/reference/diagnostics.md.
 //
-// This is a hosted extension: jmpxx/core.hpp never pulls it in, and it is selected by
-// policy at the error type with no change at the call sites. <source_location> and the
-// origin-capturing machinery are named only under JMPXX_DIAGNOSTICS_ENABLED, because a
-// source location materializes its file and function strings into the binary even where
-// the value is unused, so the only airtight way to keep release free of them is to not
-// name source_location there at all.
+// Hosted extension: jmpxx/core.hpp never pulls it in, and call sites select it only by
+// choosing the error type. <source_location> and the origin-capturing machinery are
+// named only under JMPXX_DIAGNOSTICS_ENABLED, because a source location materializes
+// its file and function strings into the binary even where the value is unused.
 #ifndef JMPXX_DIAGNOSTICS_HPP
 #define JMPXX_DIAGNOSTICS_HPP
 
@@ -1138,13 +1180,11 @@ template <class Body>
 #if JMPXX_DIAGNOSTICS_ENABLED
 // from jmpxx/diagnostic/store.hpp
 // SPDX-License-Identifier: MIT
-// The out-of-band diagnostic store: a failure's origin and the causal chain it
-// accumulates live here, beside the in-flight failure rather than inside the transport,
-// so the transport stays narrow and intermediate frames never widen to carry context.
-// It is a per-thread, fixed-capacity arena, which makes it race-free and allocation-free,
-// and a function-local thread_local, which makes it safe when first touched during
-// dynamic initialization before main. The capacity bounds and the truncation-on-overflow
-// behavior are in docs/reference/diagnostics.md.
+// Out-of-band diagnostic store. A failure's origin and propagation chain live beside
+// the in-flight failure rather than inside the transport, so the transport stays
+// narrow and intermediate frames never widen to carry context. The arena is per-thread,
+// fixed-capacity, allocation-free, and initialized on first use; the exact bounds and
+// overflow behavior are in docs/reference/diagnostics.md.
 //
 // This header is part of the debug-only diagnostic layer. It is compiled only when
 // JMPXX_DIAGNOSTICS_ENABLED is on and is reached only through jmpxx/diagnostics.hpp.
@@ -1279,9 +1319,9 @@ class store {
 
  public:
   // Open a record for a newly created failure and return its handle. The handle is
-  // always unique even when the arena is full, in which case the record is dropped
-  // and find() will not resolve the handle, so the failure simply carries no context
-  // rather than corrupting another's.
+  // always unique even when the arena is full. On overflow the record is dropped and
+  // find() will not resolve the handle, so the failure carries no context rather than
+  // corrupting another record.
   std::uint32_t open(const std::source_location& origin) noexcept {
     std::uint32_t id = next_id_++;
     if (next_id_ == 0) next_id_ = 1;
@@ -1364,7 +1404,7 @@ class rich_error {
  public:
   // The in-band payload, named and laid out exactly as the minimal error, so a
   // landing that reads err.code and err.domain reads the same source under either
-  // policy. This is the field-level half of the one-source-many-policies guarantee.
+  // policy. The field names keep one source usable under every shipped policy.
   int code = 0;
   int domain = 0;
 
@@ -1464,13 +1504,15 @@ namespace diagnostic {
 // A read-only view of a failure's captured context, valid only while the owning
 // landing scope is alive. The pointers alias the thread-local store and must not be
 // retained past that scope. available is false when the handle was dropped on
-// overflow or already released, in which case the failure simply carries no context.
+// overflow or already released; in that case the failure carries no context.
 struct context {
   bool available;
   std::source_location origin;
   const std::source_location* hops;
   int hop_count;
   bool hops_truncated;
+  platform::trace trace;
+  bool trace_captured;
 };
 
 // Resolve a rich error's out-of-band context on the calling thread.
@@ -1486,6 +1528,13 @@ struct context {
   c.hops = r->hops;
   c.hop_count = r->hop_count;
   c.hops_truncated = r->hops_truncated;
+#if JMPXX_STACKTRACE
+  c.trace = r->trace;
+  c.trace_captured = !r->trace.empty();
+#else
+  c.trace = {};
+  c.trace_captured = false;
+#endif
   return c;
 }
 
@@ -1514,6 +1563,9 @@ inline void print(const rich_error& e, std::FILE* out) noexcept {
     std::fprintf(out, "  via:    %s:%u  %s\n", c.hops[i].file_name(),
                  c.hops[i].line(), c.hops[i].function_name());
   if (c.hops_truncated) std::fprintf(out, "  ... (chain truncated)\n");
+  if (c.trace_captured)
+    std::fprintf(out, "  trace:  %d raw frame%s\n", c.trace.count,
+                 c.trace.count == 1 ? "" : "s");
 #else
   (void)e;
   (void)out;
@@ -1536,11 +1588,9 @@ inline void print(const rich_error& e, std::FILE* out) noexcept {
 // one error family from another; only typeid and dynamic_cast need RTTI, so the
 // dispatch works under -fno-rtti.
 //
-// This is a hosted extension. Including it is never required to use the minimal
-// core, and the minimal core never pulls it in. It is written to the same
-// freestanding-friendly discipline as the core (it includes no hosted header), so
-// a boundary in freestanding code can still erase its errors, but it is policy,
-// not core, and is selected explicitly.
+// Hosted extension. The minimal core never pulls it in, but the header follows the
+// core's freestanding-friendly discipline and includes no hosted header, so a
+// freestanding boundary can still erase errors when it selects this policy explicitly.
 #ifndef JMPXX_ERASED_HPP
 #define JMPXX_ERASED_HPP
 
@@ -1579,6 +1629,11 @@ class error_domain {
 
 namespace detail {
 
+[[nodiscard]] constexpr int fold_generic_error(int code, int domain_tag) noexcept {
+  return static_cast<int>(static_cast<unsigned>(code) ^
+                          (static_cast<unsigned>(domain_tag) << 16));
+}
+
 // The built-in domain for errors that carry only a bare code, so the same
 // call-site source that constructs a minimal error constructs an erased one. It
 // names itself and renders every value with one family-level string, because a
@@ -1608,21 +1663,30 @@ class erased_error {
   int value_ = 0;
   const error_domain* domain_ = &generic_domain();
 
+  [[nodiscard]] constexpr const error_domain* checked_domain() const noexcept {
+    if constexpr (JMPXX_HARDENING_EXTENSIVE_ENABLED) {
+      if (JMPXX_UNLIKELY(domain_ == nullptr))
+        platform::fail_fast("jmpxx::erased_error: null error domain");
+    }
+    return domain_;
+  }
+
  public:
   constexpr erased_error() noexcept = default;
 
   // Policy-uniform construction from a bare code, matching the minimal error's
   // shape so identical call-site source serves both policies. The second argument
-  // is the minimal error's coarse domain tag, folded into the value as
-  // code ^ (domain_tag << 16). The fold round-trips a code and a tag that each fit
-  // in 16 bits, which covers the common small-code case at no extra storage, but it
-  // is coarse, not lossless in general: a code that uses the high 16 bits can collide
-  // with a tagged code, for example erased_error(0, 1) and erased_error(65536, 0)
-  // both hold 65536. Code that must carry a full-width code and a distinct domain
-  // across a boundary names a domain descriptor through the (value, error_domain&)
-  // constructor below instead.
+  // is the minimal error's coarse domain tag, folded into the value by unsigned
+  // arithmetic over the low bits of the two integers. The fold round-trips a code
+  // and a tag that each fit in 16 bits, which covers the common small-code case at
+  // no extra storage, but it is coarse, not lossless in general: a code that uses
+  // the high 16 bits can collide with a tagged code, for example erased_error(0, 1)
+  // and erased_error(65536, 0) both hold 65536. Code that must carry a full-width
+  // code and a distinct domain across a boundary names a domain descriptor through
+  // the (value, error_domain&) constructor below instead.
   constexpr explicit erased_error(int code, int domain_tag = 0) noexcept
-      : value_(code ^ (domain_tag << 16)), domain_(&generic_domain()) {}
+      : value_(detail::fold_generic_error(code, domain_tag)),
+        domain_(&generic_domain()) {}
 
   // Boundary construction: a component erases its own error into the uniform form
   // by naming its domain. The value is the component's own code within that
@@ -1636,17 +1700,19 @@ class erased_error {
 
   [[nodiscard]] constexpr int value() const noexcept { return value_; }
   [[nodiscard]] constexpr const error_domain& domain() const noexcept {
-    return *domain_;
+    return *checked_domain();
   }
 
   // Same-domain membership by descriptor identity, without RTTI.
   [[nodiscard]] constexpr bool in_domain(const error_domain& dom) const noexcept {
-    return domain_ == &dom;
+    return checked_domain() == &dom;
   }
 
-  [[nodiscard]] const char* domain_name() const noexcept { return domain_->name(); }
+  [[nodiscard]] const char* domain_name() const noexcept {
+    return checked_domain()->name();
+  }
   [[nodiscard]] const char* message() const noexcept {
-    return domain_->message(value_);
+    return checked_domain()->message(value_);
   }
 
   // Two erased errors are equal when they name the same domain and the same value.
@@ -1676,9 +1742,9 @@ static_assert(__is_trivially_copyable(erased_error),
 // surface and the results are identical and a program written against this layer
 // builds and behaves the same on a C++20 toolchain and a reflection-capable one.
 //
-// Nothing in the core requires this layer. It is a hosted extension reached only by
-// including this header, it depends only on the error representations it derives
-// metadata for, and the full core builds on a C++20 toolchain with this layer absent.
+// Nothing in the core requires this layer. It is reached only by including this header,
+// depends only on the error representations it derives metadata for, and leaves the
+// full core buildable on a C++20 toolchain with this layer absent.
 // The reflection path is selected by JMPXX_REFLECTION, which defaults to the standard
 // __cpp_lib_reflection feature test and can be forced on for a pre-standardization
 // toolchain that implements P2996 without yet advertising the macro.
@@ -2096,12 +2162,11 @@ template <class E>
 #endif  // JMPXX_REFLECT_HPP
 // from jmpxx/platform.hpp
 // SPDX-License-Identifier: MIT
-// The platform abstraction: the engine's single boundary for target-specific and
+// Platform abstraction: the library's single boundary for target-specific and
 // ABI-specific facts and constructs. Detection lives in platform/detect.hpp, the
 // fenced fail-fast in platform/trap.hpp, and the optional trace capture in
-// platform/trace.hpp; this umbrella exposes the unit's caller-facing surface and
-// the small queries a tool or a consumer uses to report which target it is on.
-// Every platform-specific construct in the engine resides under this unit (or the
+// platform/trace.hpp; this umbrella exposes the small caller-facing target queries.
+// Every platform-specific construct in the library resides under this unit (or the
 // later, separately fenced unwind arm), which the platform-fence scan enforces.
 //
 // It pulls in only the freestanding detection and trap headers, so including it
@@ -2258,8 +2323,8 @@ template <class E, class Take, class MakeError>
 // including the lossy case of recovering a foreign category, are in
 // docs/reference/interop.md.
 //
-// This is a hosted extension: <system_error> is outside the freestanding subset, so this
-// header is never reached from jmpxx/core.hpp.
+// Hosted extension: <system_error> is outside the freestanding subset, so this header is
+// never reached from jmpxx/core.hpp.
 //
 // Category identity caveat: a std::error_category is identified by the address of its
 // singleton. The jmpxx categories below are held in one process-wide table, so within a
@@ -2379,7 +2444,7 @@ inline category_table& categories() noexcept {
 // SPDX-License-Identifier: MIT
 // Opt-in boundary between a propagated jmpxx failure and a thrown C++ exception.
 //
-// jmpxx is for code compiled with exceptions disabled, so this bridge is the seam
+// jmpxx is for code compiled with exceptions disabled, so this bridge is the boundary
 // where exception-free code must call into, or be called from, a component that
 // signals failure by throwing. value_or_throw turns a failure into a throw at the
 // point a region crosses into exception-based code, and catch_into_result runs a
@@ -2392,7 +2457,7 @@ inline category_table& categories() noexcept {
 // std::exception, so a generic catch(const std::exception&) elsewhere still sees it.
 //
 // The whole bridge exists only where exceptions are enabled, which is the opposite
-// of the primary audience, so it is fenced behind JMPXX_HAS_EXCEPTIONS and is absent
+// of the primary no-exceptions use case, so it is fenced behind JMPXX_HAS_EXCEPTIONS and is absent
 // from a -fno-exceptions or freestanding build. Including it in such a build defines
 // JMPXX_INTEROP_HAS_EXCEPTION_BRIDGE to 0 and declares nothing, so a translation unit
 // can include it unconditionally and query the macro.
