@@ -38,7 +38,7 @@ jobs:
       - name: configure
         # The benchmark and lint surfaces are exercised in the dedicated perf-and-lint job, which
         # provisions valgrind, Boost, and the LLVM development libraries; this matrix stays focused
-        # on the engine across compilers and standards. The size and compile-cost gates live in the
+        # on the library across compilers and standards. The size and compile-cost gates live in the
         # test tiers and run here regardless.
         run: cmake -S . -B build -G Ninja -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DCMAKE_CXX_STANDARD=${{ matrix.std }} -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - name: build
@@ -66,6 +66,42 @@ jobs:
       - run: cmake --preset asan-ubsan -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
       - run: cmake --build --preset asan-ubsan
       - run: ctest --preset asan-ubsan
+
+  adversarial-hardening:
+    name: adversarial hardening gates
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: install adversarial verifier tools
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft* /etc/apt/sources.list.d/azure*
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang-18 clang-tools-18 llvm-18 afl++ git
+      - name: cache MSan-instrumented libc++
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/jmpxx-msan-libcxx/install
+            ${{ runner.temp }}/jmpxx-msan-libcxx/build
+            ${{ runner.temp }}/jmpxx-msan-libcxx/llvm-project
+          key: msan-libcxx-llvmorg-18.1.8-v1
+      - name: provision MSan-instrumented libc++
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: tests/scripts/provision_msan_libcxx.sh "$RUNNER_TEMP/jmpxx-msan-libcxx"
+      - name: configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DJMPXX_BUILD_BENCHMARKS=OFF \
+            -DJMPXX_BUILD_LINT=OFF \
+            -DJMPXX_BUILD_REFERENCE_APP=OFF \
+            -DJMPXX_MSAN_LIBCXX_ROOT="$RUNNER_TEMP/jmpxx-msan-libcxx/install"
+      - name: build
+        run: cmake --build build
+      - name: run adversarial gates
+        run: ctest --test-dir build --output-on-failure -R 'adversarial|hardening|config_matrix|msan|static_analysis|mutation|model'
 
   cross-arch:
     name: cross ${{ matrix.arch }} via qemu
@@ -127,7 +163,7 @@ jobs:
             cmake -S . -B build -G Ninja -DJMPXX_BUILD_BENCHMARKS=OFF -DJMPXX_BUILD_LINT=OFF
             cmake --build build
             # The sanitizer and bash-scan tiers and the g++-13-pinned codegen and
-            # freestanding tiers are covered on Linux; the BSD cell proves the
+            # freestanding tiers are covered on Linux; the BSD cell checks that the
             # portable and interop surface builds and runs natively on a real
             # FreeBSD system.
             ctest --test-dir build --output-on-failure -E 'sanitizer|fence|doc_claim|fuzz'

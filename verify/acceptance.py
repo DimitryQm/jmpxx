@@ -4,15 +4,16 @@
 
 The sweep is the release gate: it runs every test tier and every gate in a build
 directory through CTest, pairs each gate with its inverted self-test (the .teeth
-cases, marked WILL_FAIL), and reports per-gate "green with teeth" only when both the
-gate and its teeth pass. It records the cell's identity and the headline metrics
-from jmpxx-verify, so one invocation answers whether this cell is releasable and a
-continuous-integration run consumes the result without parsing prose.
+cases, marked WILL_FAIL), and reports a gate as green only when the gate and its
+inverted self-test both pass. It records the cell's identity and the headline
+metrics from jmpxx-verify, so one invocation answers whether this cell is
+releasable and a continuous-integration run consumes the result without parsing
+prose.
 
 A gate that has no passing inverted self-test is not trusted: the report marks it
-unteethed and the verdict fails, which is the discipline that an inverted check must
-exist for every gate. Run with --self-test to prove that logic catches a failed
-real test and a missing teeth case.
+unteethed and the verdict fails, enforcing that every gate has a negative check.
+Run with --self-test to check that logic against a failed real test and a missing
+inverted self-test.
 
 Usage:
   acceptance.py --build-dir DIR [--format human|json] [--out FILE] [--cell NAME] [--jobs N]
@@ -27,7 +28,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 # Each gate names the test prefixes that make it up. A test whose WILL_FAIL property
-# is set is the gate's inverted self-test (its teeth); the rest are the gate proper.
+# is set is the gate's inverted self-test; the rest are the gate proper.
 GATES = {
     "asm_golden":   ["codegen", "release_diff"],
     "size":         ["size_delta", "probe.size"],
@@ -36,6 +37,16 @@ GATES = {
     "perf":         ["bench", "unwind.benchmark"],
     "doc_claim":    ["doc_claim"],
     "abi_layout":   ["abi_layout"],
+    "adversarial_fuzz": ["adversarial.fuzz"],
+    "differential": ["adversarial.differential"],
+    "exception_safety": ["adversarial.exception_safety"],
+    "hardening": ["hardening"],
+    "config_matrix": ["config_matrix"],
+    "memory_sanitizer": ["msan"],
+    "static_analysis": ["static_analysis"],
+    "mutation_testing": ["mutation"],
+    "adversarial_coverage": ["adversarial.coverage"],
+    "model_lifecycle": ["model.lifecycle"],
 }
 
 # Metrics worth surfacing in the report, each the JSON of one jmpxx-verify probe.
@@ -85,7 +96,7 @@ def probe_json(verify_bin, probe):
 
 
 def classify(tests, results):
-    """Group results into gates (with teeth) and tiers, and compute statuses."""
+    """Group results into gates and tiers, including inverted self-tests."""
     gate_of = {}
     for gate, prefixes in GATES.items():
         for name in tests:
@@ -143,7 +154,7 @@ def render_human(rep):
     for name, g in sorted(rep["gates"].items()):
         mark = {"green_with_teeth": "OK ", "unteethed": "NOTEETH", "fail": "FAIL"}[g["status"]]
         out.append(f"    [{mark}] {name}: {len(g['real'])} gate + "
-                   f"{len(g['teeth'])} teeth")
+                   f"{len(g['teeth'])} inverted")
     failed = [n for n, ok in rep["tiers"].items() if not ok]
     if failed:
         out.append("  failed tiers: " + ", ".join(sorted(failed)))
@@ -152,8 +163,8 @@ def render_human(rep):
 
 
 def self_test():
-    """Prove the verdict logic has teeth: it must fail a failed real test and a
-    gate that has no passing inverted self-test."""
+    """Prove the verdict logic fails a failed real test and a gate with no
+    passing inverted self-test."""
     base_tests = {"size_delta": False, "size_delta.teeth": True, "probe.size": False}
     base_results = {"size_delta": True, "size_delta.teeth": True, "probe.size": True}
     ok = build_report(base_tests, base_results, 0, {}, {})
@@ -166,13 +177,15 @@ def self_test():
     no_teeth_tests = {"size_delta": False, "probe.size": False}
     no_teeth_res = {"size_delta": True, "probe.size": True}
     r = build_report(no_teeth_tests, no_teeth_res, 0, {}, {})
-    assert r["gates"]["size"]["status"] == "unteethed", "a gate with no teeth is unteethed"
+    assert r["gates"]["size"]["status"] == "unteethed", \
+        "a gate with no inverted self-test is unteethed"
     assert r["verdict"] == "fail", "an unteethed gate must fail the verdict"
 
     failed_teeth = dict(base_results); failed_teeth["size_delta.teeth"] = False
     assert build_report(base_tests, failed_teeth, 8, {}, {})["verdict"] == "fail", \
         "a failed inverted self-test must fail the verdict"
-    print("acceptance self-test: PASS (verdict logic catches failed tests and missing teeth)")
+    print("acceptance self-test: PASS "
+          "(verdict logic catches failed tests and missing inverted self-tests)")
     return 0
 
 

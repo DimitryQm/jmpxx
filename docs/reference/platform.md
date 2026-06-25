@@ -1,14 +1,14 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Platform abstraction
 
-The platform abstraction is the engine's single boundary for target-specific and
-ABI-specific facts and constructs. Every platform-specific construct in the engine
+The platform abstraction is the library's single boundary for target-specific and
+ABI-specific facts and constructs. Every platform-specific construct in the library
 resides under it, in `jmpxx/platform/`, or in the separately fenced experimental
-unwind area; a static scan enforces that, so the rest of the engine is
+unwind area; a static scan enforces that, so the rest of the library is
 platform-agnostic.
 
 ## Detection (`jmpxx/platform/detect.hpp`)
-This header is the one place the engine reads the compiler's predefined target
+This header is the one place the library reads the compiler's predefined target
 macros. It exposes the result as tokens the rest of the code asks for instead of
 reading a raw `_MSC_VER`, `__x86_64__`, or `_WIN32` itself.
 
@@ -19,10 +19,10 @@ defines `__GNUC__` or `_MSC_VER`, because clang-cl behaves like Clang for intrin
 operating system, with `JMPXX_OS_HOSTED` their union and `JMPXX_OS_NONE` set on a
 freestanding or bare-metal target. `JMPXX_ARCH_X86_64`, `JMPXX_ARCH_ARM64`,
 `JMPXX_ARCH_ARM32`, `JMPXX_ARCH_RISCV`, and `JMPXX_ARCH_WASM` report the architecture.
-`JMPXX_CPLUSPLUS` is the active standard version, normalized for MSVC, and
-`JMPXX_HAS_EXCEPTIONS` reports whether exceptions are enabled. The header uses only
-the preprocessor and is freestanding, so it is safe on the minimal core's include
-path.
+`JMPXX_CPLUSPLUS` is the active standard version, normalized for MSVC.
+`JMPXX_HAS_EXCEPTIONS` reports whether exceptions are enabled, and
+`JMPXX_HAS_RTTI` reports whether RTTI is enabled. The header uses only the
+preprocessor and is freestanding, so it is safe on the minimal core's include path.
 
 ## Queries (`jmpxx/platform.hpp`)
 The unit's umbrella includes the detection and the fenced fail-fast and exposes small
@@ -52,7 +52,7 @@ A construct is platform-specific or ABI-specific when it differs by operating sy
 architecture, or ABI: an OS or architecture detection macro, a raw compiler-identity
 macro, a platform or ABI system header, or inline assembly. Every such construct lives
 under `jmpxx/platform/` or the fenced unwind area, and the `platform_fence` test scans
-every other engine header and fails on one found outside, with a known-bad fixture
+every other public header and fails on one found outside, with a known-bad fixture
 proving the scan rejects a leak. A portable compiler intrinsic that behaves
 identically on every target, such as a branch hint, is a compiler-portability concern
 rather than a platform one and is not fenced.

@@ -9,7 +9,14 @@ endif()
 # Toolchains some tiers below need are located once, up front, so that every tier
 # that depends on them sees the result regardless of where it appears in this file.
 find_program(JMPXX_GXX13 g++-13)
-find_program(JMPXX_CLANGXX clang++)
+find_program(JMPXX_CLANGXX NAMES clang++ clang++-19 clang++-18 clang++-17 clang++-16)
+find_program(JMPXX_AFL_CLANG_FASTXX afl-clang-fast++)
+find_program(JMPXX_SCAN_BUILD NAMES scan-build scan-build-19 scan-build-18 scan-build-17 scan-build-16)
+find_program(JMPXX_LLVM_PROFDATA NAMES llvm-profdata llvm-profdata-19 llvm-profdata-18 llvm-profdata-17 llvm-profdata-16)
+find_program(JMPXX_LLVM_COV NAMES llvm-cov llvm-cov-19 llvm-cov-18 llvm-cov-17 llvm-cov-16)
+find_program(JMPXX_PYTHON3 python3)
+set(JMPXX_MSAN_LIBCXX_ROOT "" CACHE PATH
+  "Root of an MSan-instrumented libc++ install used by the memory-sanitizer gate")
 
 # Compile-and-run tiers: static and constexpr assert at translation time (a
 # failed assertion fails the build), the property tier exercises randomized
@@ -25,8 +32,62 @@ add_test(NAME static COMMAND jmpxx_static)
 add_test(NAME constexpr COMMAND jmpxx_constexpr)
 add_test(NAME property COMMAND jmpxx_property)
 
+# Adversarial portable-surface hardening. These are gates, not examples: each
+# defect class has an inverted self-test so acceptance can trust the gate.
+add_executable(jmpxx_adversarial_structured adversarial/structured_sequences.cpp)
+add_executable(jmpxx_adversarial_structured_teeth adversarial/structured_sequences.cpp)
+add_executable(jmpxx_differential_oracle adversarial/differential_oracle.cpp)
+add_executable(jmpxx_exception_safety adversarial/exception_safety.cpp)
+add_executable(jmpxx_model_lifecycle adversarial/model_lifecycle.cpp)
+add_executable(jmpxx_usage_scenarios adversarial/usage_scenarios.cpp)
+foreach(t jmpxx_adversarial_structured jmpxx_adversarial_structured_teeth
+          jmpxx_differential_oracle jmpxx_exception_safety jmpxx_model_lifecycle
+          jmpxx_usage_scenarios)
+  target_link_libraries(${t} PRIVATE jmpxx::jmpxx)
+  target_compile_features(${t} PRIVATE cxx_std_23)
+  target_compile_options(${t} PRIVATE ${JMPXX_TEST_WARNINGS})
+endforeach()
+target_compile_definitions(jmpxx_adversarial_structured_teeth PRIVATE
+  JMPXX_ADVERSARIAL_INJECT_DEFECT=1 JMPXX_DIAGNOSTICS_ENABLED=1)
+target_compile_definitions(jmpxx_adversarial_structured PRIVATE
+  JMPXX_DIAGNOSTICS_ENABLED=1)
+target_compile_definitions(jmpxx_model_lifecycle PRIVATE
+  JMPXX_DIAGNOSTICS_ENABLED=1
+  JMPXX_HARDENING_MODE=JMPXX_HARDENING_EXTENSIVE)
+target_compile_definitions(jmpxx_usage_scenarios PRIVATE
+  JMPXX_DIAGNOSTICS_ENABLED=0
+  JMPXX_HARDENING_MODE=JMPXX_HARDENING_EXTENSIVE)
+if(NOT MSVC)
+  target_compile_options(jmpxx_usage_scenarios PRIVATE -fno-exceptions -fno-rtti)
+endif()
+add_test(NAME adversarial.fuzz.structured COMMAND jmpxx_adversarial_structured)
+add_test(NAME adversarial.fuzz.structured.teeth
+  COMMAND bash ${CMAKE_SOURCE_DIR}/tests/scripts/expect_command_failure.sh
+  $<TARGET_FILE:jmpxx_adversarial_structured_teeth> --inject-defect)
+set_tests_properties(adversarial.fuzz.structured.teeth PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME adversarial.differential COMMAND jmpxx_differential_oracle)
+add_test(NAME adversarial.differential.teeth
+  COMMAND bash ${CMAKE_SOURCE_DIR}/tests/scripts/expect_command_failure.sh
+  $<TARGET_FILE:jmpxx_differential_oracle> --inject-divergence)
+set_tests_properties(adversarial.differential.teeth PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME adversarial.exception_safety COMMAND jmpxx_exception_safety)
+add_test(NAME adversarial.exception_safety.teeth
+  COMMAND bash ${CMAKE_SOURCE_DIR}/tests/scripts/expect_command_failure.sh
+  $<TARGET_FILE:jmpxx_exception_safety> --inject-valueless)
+set_tests_properties(adversarial.exception_safety.teeth PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME model.lifecycle COMMAND jmpxx_model_lifecycle)
+add_test(NAME model.lifecycle.teeth
+  COMMAND bash ${CMAKE_SOURCE_DIR}/tests/scripts/expect_command_failure.sh
+  $<TARGET_FILE:jmpxx_model_lifecycle> --inject-wrong-transition)
+set_tests_properties(model.lifecycle.teeth PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME adversarial.usage_scenarios COMMAND jmpxx_usage_scenarios)
+
 # Monadic-ops tier: and_then/or_else/transform/transform_error match std::expected,
-# exercised over the three policies and in constant evaluation. Built in the niche
+# exercised over the three policies and in constant evaluation. Built in the strict
 # configuration (exceptions and RTTI off) on the compilers whose flags spell it.
 add_executable(jmpxx_monadic monadic/monadic_tests.cpp)
 target_link_libraries(jmpxx_monadic PRIVATE jmpxx::jmpxx)
@@ -41,9 +102,9 @@ foreach(probe size alloc destructors semantics levels policies diagnostics inter
   add_test(NAME probe.${probe} COMMAND jmpxx-verify ${probe})
 endforeach()
 
-# The no-alloc gate's teeth: an injected heap allocation on the measured path must
-# be observed by the hooked allocator and fail the probe, so the gate is proven to
-# catch an allocating path rather than passing because nothing exercises it.
+# The no-alloc gate's inverted self-test: an injected heap allocation on the measured
+# path must be observed by the hooked allocator and fail the probe, so the gate catches
+# an allocating path rather than passing because nothing exercises it.
 add_test(NAME probe.alloc.teeth COMMAND jmpxx-verify alloc --inject-alloc)
 set_tests_properties(probe.alloc.teeth PROPERTIES WILL_FAIL TRUE)
 
@@ -115,7 +176,7 @@ endif()
 
 # Platform-fence scan: every platform-specific or ABI-specific construct lives
 # inside platform/ or the fenced unwind arm, so a raw target macro outside them is
-# rejected. The teeth case scans a known-bad header that leaks a platform macro
+# rejected. The inverted case scans a known-bad header that leaks a platform macro
 # outside the fence and must fail. Pure text scan, so it runs anywhere bash does.
 if(UNIX)
   add_test(NAME platform_fence COMMAND bash
@@ -182,6 +243,131 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_CLANGXX)
   set_tests_properties(interop.fuzz PROPERTIES TIMEOUT 120)
 endif()
 
+# Multi-engine fuzzing over the full portable surface. The libFuzzer and AFL
+# runs drive the same semantics with different fuzzing engines, and each has a
+# known-bad injected build that must fail.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_CLANGXX)
+  add_test(NAME adversarial.fuzz.libfuzzer COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/portable_fuzz_libfuzzer_check.sh
+    ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/adversarial/portable_libfuzzer.cpp 10 clean)
+  add_test(NAME adversarial.fuzz.libfuzzer.teeth COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/portable_fuzz_libfuzzer_check.sh
+    ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/adversarial/portable_libfuzzer.cpp 2 inject)
+  set_tests_properties(adversarial.fuzz.libfuzzer PROPERTIES TIMEOUT 90)
+  set_tests_properties(adversarial.fuzz.libfuzzer.teeth PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_AFL_CLANG_FASTXX)
+  add_test(NAME adversarial.fuzz.afl COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/portable_fuzz_afl_check.sh
+    ${JMPXX_AFL_CLANG_FASTXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/adversarial/portable_afl.cpp 6 clean)
+  add_test(NAME adversarial.fuzz.afl.teeth COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/portable_fuzz_afl_check.sh
+    ${JMPXX_AFL_CLANG_FASTXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/adversarial/portable_afl.cpp 2 inject)
+  set_tests_properties(adversarial.fuzz.afl PROPERTIES TIMEOUT 90)
+  set_tests_properties(adversarial.fuzz.afl.teeth PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
+endif()
+
+# Graded hardening and configuration matrix. The hardening gate checks live
+# fail-fast behavior and generated-code absence; the configuration matrix runs the
+# meaningful switch combinations, including stack-trace capture under sanitizers.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_CLANGXX
+   AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
+  add_test(NAME hardening.mode COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/hardening_check.sh
+    ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/hardening/wrong_state_access.cpp
+    ${CMAKE_SOURCE_DIR}/tests/hardening/erased_null_domain.cpp clean)
+  add_test(NAME hardening.mode.teeth COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/hardening_check.sh
+    ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/hardening/wrong_state_access.cpp
+    ${CMAKE_SOURCE_DIR}/tests/hardening/erased_null_domain.cpp inject)
+  set_tests_properties(hardening.mode.teeth PROPERTIES WILL_FAIL TRUE)
+
+  add_test(NAME config_matrix COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/config_matrix_check.sh
+    ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/adversarial/config_matrix.cpp clean)
+  add_test(NAME config_matrix.teeth COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/config_matrix_check.sh
+    ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/adversarial/config_matrix.cpp inject)
+  set_tests_properties(config_matrix.teeth PROPERTIES WILL_FAIL TRUE)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_CLANGXX AND JMPXX_MSAN_LIBCXX_ROOT)
+  add_test(NAME msan COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/msan_check.sh
+    ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/adversarial/msan_surface.cpp clean
+    ${JMPXX_MSAN_LIBCXX_ROOT})
+  add_test(NAME msan.teeth COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/msan_check.sh
+    ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/adversarial/msan_known_bad.cpp inject
+    ${JMPXX_MSAN_LIBCXX_ROOT})
+  set_tests_properties(msan.teeth PROPERTIES WILL_FAIL TRUE)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_CLANGXX AND JMPXX_SCAN_BUILD)
+  add_test(NAME static_analysis COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/static_analysis_check.sh
+    ${JMPXX_SCAN_BUILD} ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/tests/adversarial/static_analysis_public.cpp)
+  add_test(NAME static_analysis.teeth COMMAND bash
+    ${CMAKE_SOURCE_DIR}/tests/scripts/static_analysis_check.sh
+    ${JMPXX_SCAN_BUILD} ${JMPXX_CLANGXX} ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/tests/adversarial/static_analysis_known_bad.cpp)
+  set_tests_properties(static_analysis.teeth PROPERTIES WILL_FAIL TRUE)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_PYTHON3 AND JMPXX_CLANGXX)
+  add_test(NAME mutation.campaign COMMAND
+    ${JMPXX_PYTHON3} ${CMAKE_SOURCE_DIR}/tests/scripts/mutation_campaign.py
+    --cxx ${JMPXX_CLANGXX}
+    --source-root ${CMAKE_SOURCE_DIR}
+    --build-root ${CMAKE_BINARY_DIR}
+    --floor 0.90
+    --mode clean
+    --report ${CMAKE_BINARY_DIR}/mutation-campaign.json)
+  add_test(NAME mutation.campaign.teeth COMMAND
+    ${JMPXX_PYTHON3} ${CMAKE_SOURCE_DIR}/tests/scripts/mutation_campaign.py
+    --cxx ${JMPXX_CLANGXX}
+    --source-root ${CMAKE_SOURCE_DIR}
+    --build-root ${CMAKE_BINARY_DIR}
+    --floor 0.90
+    --mode inject)
+  set_tests_properties(mutation.campaign PROPERTIES TIMEOUT 240)
+  set_tests_properties(mutation.campaign.teeth PROPERTIES WILL_FAIL TRUE TIMEOUT 120)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND JMPXX_PYTHON3 AND JMPXX_CLANGXX
+   AND JMPXX_LLVM_PROFDATA AND JMPXX_LLVM_COV)
+  add_test(NAME adversarial.coverage COMMAND
+    ${JMPXX_PYTHON3} ${CMAKE_SOURCE_DIR}/tests/scripts/coverage_floor.py
+    --cxx ${JMPXX_CLANGXX}
+    --profdata ${JMPXX_LLVM_PROFDATA}
+    --cov ${JMPXX_LLVM_COV}
+    --source-root ${CMAKE_SOURCE_DIR}
+    --build-root ${CMAKE_BINARY_DIR}
+    --mode clean
+    --report ${CMAKE_BINARY_DIR}/adversarial-coverage.json)
+  add_test(NAME adversarial.coverage.teeth COMMAND
+    ${JMPXX_PYTHON3} ${CMAKE_SOURCE_DIR}/tests/scripts/coverage_floor.py
+    --cxx ${JMPXX_CLANGXX}
+    --profdata ${JMPXX_LLVM_PROFDATA}
+    --cov ${JMPXX_LLVM_COV}
+    --source-root ${CMAKE_SOURCE_DIR}
+    --build-root ${CMAKE_BINARY_DIR}
+    --mode inject)
+  set_tests_properties(adversarial.coverage PROPERTIES TIMEOUT 90)
+  set_tests_properties(adversarial.coverage.teeth PROPERTIES WILL_FAIL TRUE TIMEOUT 60)
+endif()
+
 # Compile-fail tier: misuse must not compile; the correct forms must. The check
 # uses GCC/Clang flag spellings, so it runs on those compilers.
 if(NOT MSVC)
@@ -199,7 +385,7 @@ if(NOT MSVC)
 endif()
 
 # Codegen (asm-golden) tier, pinned to g++-13. Real gates assert the committed
-# golden and the absence of spills; the teeth assert the gate rejects a wrong
+# golden and the absence of spills; the inverted cases assert the gate rejects a wrong
 # golden and a spilling fixture.
 # The goldens are pinned to g++-13 on x86-64 Linux, so the codegen tier runs only
 # there; on any other platform the committed assembly would not match.
@@ -232,10 +418,10 @@ if(JMPXX_CODEGEN_HOST)
     --symbol jx_spilly --golden ${CMAKE_BINARY_DIR}/spilly.s --update --forbid-spill)
   set_tests_properties(codegen.teeth.spill PROPERTIES WILL_FAIL TRUE)
 
-  # Release-diff: the dual-personality headline. The rich and minimal policies
-  # generate identical code in a release build, and the gate has teeth: a fixture
-  # whose diagnostic call survives into release, by code or by a leaked source
-  # string, fails the equality the gate asserts.
+  # Release-diff: the dual-personality release check. The rich and minimal policies
+  # generate identical code in a release build. The inverted case uses a fixture whose
+  # diagnostic call survives into release, by code or by a leaked source string, and
+  # that fixture must fail the equality the gate asserts.
   add_test(NAME release_diff COMMAND jmpxx-verify release-diff
     --fixture ${FX}/policy_release.cpp --symbol-a jx_min_op --symbol-b jx_rich_op
     --forbid-string policy_release)
@@ -246,10 +432,10 @@ if(JMPXX_CODEGEN_HOST)
 endif()
 
 # Binary-size-delta gate: the library adds no bytes over the hand-written branch in
-# the ship configuration. The fixture and the baseline compile to objects of equal section
-# size, so the delta is zero; the teeth case is a bloated fixture whose object is larger and
-# must fail the zero budget. Deterministic for a fixed compiler, so it runs on the codegen
-# host where g++-13 is pinned.
+# the ship configuration. The fixture and the baseline compile to objects of equal
+# section size, so the delta is zero; the inverted case is a bloated fixture whose
+# object is larger and must fail the zero budget. Deterministic for a fixed compiler,
+# so it runs on the codegen host where g++-13 is pinned.
 set(BF ${CMAKE_SOURCE_DIR}/benchmarks/fixtures)
 if(JMPXX_CODEGEN_HOST)
   add_test(NAME size_delta COMMAND jmpxx-verify size-delta
@@ -263,7 +449,7 @@ endif()
 
 # ABI layout gate: the observable layout of the frozen public types does not change
 # within the major version. The probe compiles the descriptor fixture in the ship
-# configuration and diffs the emitted layout against the committed golden; the teeth
+# configuration and diffs the emitted layout against the committed golden; the inverted
 # case points the gate at a golden claiming a changed layout, which must fail. Pinned
 # to the LP64 codegen host, where the committed golden's pointer width and type sizes
 # hold; the static tier backstops the architecture-independent facts on every cell.
@@ -282,18 +468,17 @@ endif()
 # full header builds and runs a hosted consumer. Pinned to g++-13 because the
 # freestanding compile needs the one libstdc++ that honors -ffreestanding, and needs
 # python3 for the generator.
-find_program(JMPXX_PYTHON3 python3)
 if(JMPXX_GXX13 AND JMPXX_PYTHON3 AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_test(NAME amalgamation COMMAND bash
     ${CMAKE_SOURCE_DIR}/tests/scripts/amalgamation_check.sh
     ${CMAKE_SOURCE_DIR} ${JMPXX_GXX13})
 endif()
 
-# The acceptance sweep's own teeth. acceptance.py aggregates the tiers and gates into
-# one release verdict; its --self-test proves the verdict logic fails a failed test
-# and a gate that has no inverted self-test. Pure logic, no nested CTest, so it runs
-# here as a tier; the full sweep is run by hand or in continuous integration against a
-# built tree, never as a test, to avoid recursion.
+# The acceptance sweep's own inverted self-test. acceptance.py aggregates the tiers
+# and gates into one release verdict; its --self-test checks that verdict logic fails a
+# failed test and a gate that has no inverted self-test. Pure logic, no nested CTest,
+# so it runs here as a tier; the full sweep is run by hand or in continuous
+# integration against a built tree, never as a test, to avoid recursion.
 if(JMPXX_PYTHON3)
   add_test(NAME acceptance.self_test COMMAND
     ${JMPXX_PYTHON3} ${CMAKE_SOURCE_DIR}/verify/acceptance.py --self-test)
@@ -301,7 +486,7 @@ endif()
 
 # Compile-cost gate: the template-instantiation count, the deterministic compile-cost
 # metric, stays within budget. The gate uses Clang for -ftime-trace; the count is identical
-# across runs and across Clang versions, so the gate never flakes. The teeth case is an
+# across runs and across Clang versions, so the gate never flakes. The inverted case is an
 # instantiation-heavy fixture far above the budget.
 if(JMPXX_CLANGXX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_test(NAME compile_cost COMMAND jmpxx-verify compile-cost
@@ -333,10 +518,11 @@ if(UNIX AND JMPXX_CLANGXX)
 endif()
 
 # Doc-claim tier: a documented cost the harness reports must appear verbatim in the
-# reference, so a documented value cannot drift from the measured one. The teeth point
-# the same check at a document that states a cost the harness does not report, which
-# must fail; the other documented cost, size, codegen, perf, and layout claims are each
-# backed by their own gate above, every one checked against a known-bad input.
+# reference, so a documented value cannot drift from the measured one. The inverted
+# case points the same check at a document that states a cost the harness does not
+# report, which must fail; the other documented cost, size, codegen, perf, and layout
+# claims are each backed by their own gate above, every one checked against a
+# known-bad input.
 if(UNIX)
   add_test(NAME doc_claim COMMAND bash
     ${CMAKE_SOURCE_DIR}/tests/scripts/doc_claim_check.sh
@@ -347,8 +533,8 @@ if(UNIX)
   set_tests_properties(doc_claim.teeth PROPERTIES WILL_FAIL TRUE)
 endif()
 
-# Unwind-execution tier: the experimental non-local unwind arm is proven by real
-# execution. It is built at several optimization levels because a forced unwind that
+# Unwind-execution tier for the experimental non-local unwind arm. It is built at several
+# optimization levels because a forced unwind that
 # elides a cleanup landing pad or lands at the wrong frame is exposed only under
 # optimization; an -O0-only run would pass a regressed arm that silently skips
 # destructors at -O2. The arm requires exception cleanup tables, which are the default,
@@ -363,7 +549,7 @@ if(NOT MSVC)
     add_test(NAME unwind.exec.O${opt} COMMAND jmpxx_unwind_exec_O${opt})
   endforeach()
 
-  # A swallowing catch-all on the escape path is never a silent mis-land. A
+  # A swallowing catch-all on the escape path is never a silent wrong landing. A
   # non-cooperative catch(...) that does not rethrow is handled differently by different
   # C++ runtimes: libstdc++ and libc++abi let it consume the escape, which the arm turns
   # into a defined termination, while libcxxrt transits it so the escape reaches its
@@ -392,8 +578,8 @@ if(NOT MSVC)
     -P ${CMAKE_SOURCE_DIR}/cmake/compile_check.cmake)
 endif()
 
-# Opt-in scan: no portable engine header reaches the arm, so a consumer that never
-# includes jmpxx/unwind.hpp never compiles it. The scan proves the arm is off every
+# Opt-in scan: no portable public header reaches the arm, so a consumer that never
+# includes jmpxx/unwind.hpp never compiles it. The scan checks that the arm is off every
 # default path. Pure text scan, so it runs anywhere bash does.
 if(UNIX)
   add_test(NAME unwind.opt_in_scan COMMAND bash
@@ -404,8 +590,8 @@ endif()
 # Unwind sad-path benchmark and the destructor-count surface, driven through the harness.
 # The committed run asserts the forced-unwind sad path stays within its determinism bound
 # and reports the distribution beside a C++ throw at
-# the same depth. The teeth run injects a non-deterministic cleanup, which drives the
-# ratio past the bound and must fail the same gate, proving it is not vacuous.
+# the same depth. The inverted run injects a non-deterministic cleanup, which drives the
+# ratio past the bound and must fail the same gate's negative path.
 add_test(NAME unwind.benchmark COMMAND jmpxx-verify unwind --iters 40000)
 add_test(NAME unwind.benchmark.teeth COMMAND jmpxx-verify unwind --inject-jitter --iters 20000)
 set_tests_properties(unwind.benchmark.teeth PROPERTIES WILL_FAIL TRUE TIMEOUT 180)

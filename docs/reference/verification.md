@@ -1,16 +1,16 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Verification surface
 
-A header library cannot be run on its own, so jmpxx ships a command-line surface that compiles
-fixtures, measures the result, and gates it. Every performance, size, and codegen claim the project
-makes is produced here and fails the build on a regression, and every claim in
-[../comparison.md](../comparison.md) is reproducible with the commands below. Two tools make up the
-surface: `jmpxx-verify` compiles a fixture and measures it, and `jmpxx-bench` runs a workload and
-times it. Both take `--format=json` for one machine-readable object per probe.
+A header library cannot be run on its own, so the verification tools compile fixtures, measure the
+result, and gate it. Every performance, size, and codegen claim in jmpxx is produced here and fails
+the build on a regression, and every claim in [../comparison.md](../comparison.md) is reproducible
+with the commands below. Two tools make up the surface: `jmpxx-verify` compiles a fixture and
+measures it, and `jmpxx-bench` runs a workload and times it. Both take `--format=json` for one
+machine-readable object per probe.
 
 ## `jmpxx-verify`
 
-Each subcommand reports named metrics and a pass or fail. The behavioral commands run the engine and
+Each subcommand reports named metrics and a pass or fail. The behavioral commands run the library and
 report what it did. The codegen and size commands compile a fixture and inspect the output.
 
 - `semantics`, `destructors`, `policies`, `diagnostics`, `interop`, `reflect`, `platform` exercise
@@ -25,7 +25,7 @@ report what it did. The codegen and size commands compile a fixture and inspect 
 - `codegen` compiles a fixture at `-O2` for a target, slices one function's assembly, and diffs it
   against a committed golden, reporting instruction count and stack-spill presence. `release-diff`
   compiles the same operation under the minimal and the rich policy in a release configuration and
-  requires their machine code to match, which proves the rich policy is free in release.
+  requires their machine code to match, showing that the rich policy is free in release.
 - `size` reports the transport size per policy against a no-overhead budget. `alloc` counts heap
   allocations over the paths declared allocation-free, through a replaced global `operator new`.
 - `size-delta` compiles a jmpxx fixture and a hand-written baseline to objects in the ship
@@ -40,7 +40,7 @@ report what it did. The codegen and size commands compile a fixture and inspect 
 `jmpxx-bench` drives one error-propagation kernel implemented identically for jmpxx, a hand-written
 branch, `std::expected`, a threaded `std::error_code`, language exceptions, Boost.Outcome,
 Boost.LEAF, and tl::expected, so a measured difference is the mechanism and not the work. The results
-and the honest comparison are in [../comparison.md](../comparison.md).
+and the comparison are in [../comparison.md](../comparison.md).
 
 - `run` sweeps a failure ratio (0, 1, 50, and 100 percent) and a depth (8 and 32) and reports each
   mechanism's per-call latency by median, 90th, and 99th percentile, with the ratio against the
@@ -75,6 +75,31 @@ checked against a known-bad input so it cannot pass silently.
 | unwind determinism | `unwind` | sad-path tail within a multiple of a throw's | an injected non-deterministic cleanup |
 | abi layout | `abi-layout` | frozen type layout matches the committed golden | a golden claiming a changed layout |
 | doc claim | `doc_claim` script | a documented cost matches the harness | a doc stating a cost the harness does not report |
+| adversarial fuzz | `adversarial.fuzz.*` CTest tiers | portable surface has no crash or sanitizer finding under structured, libFuzzer, and AFL input | injected crash seeds for each fuzz path |
+| differential | `adversarial.differential` | transport and bridge behavior match an independent oracle | an injected oracle divergence |
+| exception safety | `adversarial.exception_safety` | throwing operations do not leave an observable empty or wrong state | an injected empty-state report |
+| hardening | `hardening.mode` | checks fire in their mode and vanish below it | a deliberately wrong absence expectation |
+| configuration matrix | `config_matrix` | every declared switch cell builds and runs | a deliberately missing matrix cell |
+| memory sanitizer | `msan` | portable surface is clean under an MSan-instrumented libc++ | an uninitialized read fixture |
+| static analysis | `static_analysis` | public portable headers are analyzer-clean | a null-dereference fixture |
+| mutation testing | `mutation.campaign` | at least 90% of representative source mutants are killed, with untriaged survivors forbidden | a deliberately weakened witness suite |
+| adversarial coverage | `adversarial.coverage` | at least 82% region and 78% branch coverage over the tracked portable headers, with named critical regions reached | a deliberately narrowed harness |
+| model lifecycle | `model.lifecycle` | transport, propagation, and diagnostic landing behavior match the abstract lifecycle model | an injected wrong transition |
+
+The mutation gate mutates the public headers in a temporary include tree and
+compiles the portable witness suite against each mutant. The committed population covers
+the discriminant, checked accessors, cross-state assignment, propagation branches,
+type-erased policy folds, and diagnostic-store capacity, hop, lookup, and truncation
+discipline. The coverage gate uses Clang source-based coverage and gates on regions and
+branches over named portable headers rather than averaging line coverage across the tree.
+The expected bridge region is required on toolchains that expose `std::expected` and is
+reported as absent on toolchains where `JMPXX_INTEROP_HAS_EXPECTED=0`.
+
+`adversarial.usage_scenarios` is a usage tier rather than a gate. It runs fixed-buffer
+embedded-style sensor validation, feed decoding with a risk bound, and a storage/page
+boundary under extensive hardening, `-fno-exceptions`, `-fno-rtti`, diagnostics off, and
+global heap-allocation traps. The tier exists to make the adversarial apparatus touch
+strict consumer code shapes as well as synthetic state-machine drivers.
 
 ## Structured output
 
@@ -87,19 +112,19 @@ The schema is stable within a major version.
 
 `verify/acceptance.py` runs the whole suite over a built tree and reduces it to one release
 verdict. It runs every tier and every gate through CTest, pairs each gate with its inverted
-self-test (the `.teeth` cases), and reports a gate green only when both the gate and its teeth
-pass. A gate with no passing inverted self-test is reported `unteethed` and fails the verdict, so
-the report cannot read green while a gate is unproven. It records the cell's compiler,
+self-test (the `.teeth` cases), and reports a gate green only when the gate and its inverted test
+both pass. A gate with no passing inverted self-test is reported `unteethed` and fails the
+verdict, so the report cannot read green while a gate lacks its negative check. It records the cell's compiler,
 architecture, and standard and the headline metrics from `jmpxx-verify`.
 
 ```sh
 python3 verify/acceptance.py --build-dir build --format json --out acceptance.json
 ```
 
-The report object carries `cell`, `summary`, `gates` (each with its status and its gate and teeth
-members), `tiers`, `metrics`, and a top-level `verdict`, and the schema is stable within a major
-version. `--self-test` proves the verdict logic itself, that it fails a failed test and a gate
-with no inverted self-test, and it runs as a tier in the suite.
+The report object carries `cell`, `summary`, `gates` (each with its status, gate members, and
+inverted-test members), `tiers`, `metrics`, and a top-level `verdict`. The schema is stable
+within a major version. `--self-test` checks the verdict logic itself: it fails a failed
+test and a gate with no inverted self-test, and it runs as a tier in the suite.
 
 ## Reproducing the comparison
 

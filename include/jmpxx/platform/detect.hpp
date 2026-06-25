@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Platform, architecture, and compiler detection: the one place the engine reads
-// the compiler's predefined macros. Every other header asks for a target fact
+// Platform, architecture, and compiler detection: the only place the library reads
+// compiler predefined macros. Every other header asks for a target fact
 // through the JMPXX_COMPILER_*, JMPXX_OS_*, and JMPXX_ARCH_* tokens defined here,
 // so a raw `_MSC_VER`, `__x86_64__`, or `_WIN32` appearing anywhere outside this
 // platform unit is a fence violation the platform-fence scan rejects. Centralizing
-// detection is what makes that fence enforceable rather than asserted, and it gives
-// the later experimental unwind arm one stable place to ask which ABI it is on.
+// detection makes that fence enforceable and gives the experimental unwind arm one
+// stable place to ask which ABI it is on.
 //
 // This header pulls in no standard library header and uses only the preprocessor,
 // so it is freestanding and is safe on the minimal core's include path.
@@ -53,6 +53,14 @@
 #define JMPXX_HAS_EXCEPTIONS 0
 #endif
 
+// Whether RTTI is enabled in this translation unit. Type-erased dispatch must not
+// rely on it, but the configuration matrix records the dimension explicitly.
+#if defined(__GXX_RTTI) || defined(__cpp_rtti) || defined(_CPPRTTI)
+#define JMPXX_HAS_RTTI 1
+#else
+#define JMPXX_HAS_RTTI 0
+#endif
+
 // Operating system and environment. At most one hosted OS is 1. A freestanding or
 // bare-metal target matches none of them and is reported by JMPXX_OS_NONE, and
 // JMPXX_OS_HOSTED is the union so a header can ask "is there an OS here" without
@@ -64,7 +72,7 @@
 #endif
 
 // __APPLE__ with __MACH__ is Darwin, the kernel under macOS and the other Apple
-// systems; the engine treats them as one OS cell.
+// systems; jmpxx treats them as one OS cell.
 #if defined(__APPLE__) && defined(__MACH__)
 #define JMPXX_OS_MACOS 1
 #else
