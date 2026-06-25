@@ -26,15 +26,31 @@ middle of the chain never grow an error type in their signatures.
 ## Example
 
 ```cpp
+#include <cstdio>
 #include <jmpxx/core.hpp>
+#include <string_view>
+
+struct Config {
+  int port;
+};
 
 jmpxx::result<int> parse_port(std::string_view text);
+int start_server(Config cfg);
 
 jmpxx::result<Config> load_config(std::string_view text) {
   JMPXX_TRY(port, parse_port(text));  // on failure, return it from load_config
   Config cfg;
   cfg.port = port;
   return cfg;
+}
+
+int main() {
+  jmpxx::result<Config> cfg = load_config("8080");
+  if (!cfg.has_value()) {
+    std::fprintf(stderr, "config error %d\n", cfg.error().code);
+    return 1;
+  }
+  return start_server(cfg.value());
 }
 ```
 
@@ -49,10 +65,33 @@ no call site.
 `transform`, and `transform_error`, for code that prefers a pipeline to a sequence of
 `JMPXX_TRY` statements.
 
+## Use
+
+Install once:
+
+```sh
+cmake -S . -B build -DJMPXX_BUILD_TESTS=OFF
+cmake --install build --prefix /path/to/prefix
+```
+
+Then link the interface target, which carries the include directory and the C++20
+requirement:
+
+```cmake
+find_package(jmpxx CONFIG REQUIRED)
+target_link_libraries(app PRIVATE jmpxx::jmpxx)
+```
+
+Pass `/path/to/prefix` through `CMAKE_PREFIX_PATH` if it is not on CMake's default
+search path. FetchContent, `add_subdirectory`, CPM.cmake, Conan, vcpkg, and the
+single-header amalgamations are covered in
+[docs/reference/packaging.md](docs/reference/packaging.md).
+
 ## Guarantees
 
 Every property below has a build gate, and each gate has an inverted case that must
-fail on known-bad input.
+fail on known-bad input. [docs/reference/verification.md](docs/reference/verification.md)
+names the commands and fixtures behind them.
 
 | Guarantee | Backed by |
 |-----------|-----------|
@@ -61,12 +100,9 @@ fail on known-bad input.
 | Every destructor on a failure path runs exactly once | instrumented destructor-count tiers, on the portable surface and the unwind arm |
 | A produced failure cannot be discarded silently | a compile-fail tier at the type and at the propagation site |
 | Freestanding: no heap, no exceptions, no RTTI, no hosted header | a freestanding cell, an include-graph scan, and a no-allocation gate |
-| The experimental non-local escape has a bounded, measured sad path | an unwind sad-path distribution gate |
-| No undefined behavior on any exercised path | the address, undefined-behavior, thread, and memory sanitizers, static analysis, and boundary-input fuzzing |
 | Hardened contract violations fail fast when enabled and vanish when disabled | live fail-fast probes and optimized codegen absence checks |
-| The adversarial suite reaches the portable surface it claims to harden | source mutation testing, region and branch coverage floors, and a model-based lifecycle tier |
+| No undefined behavior on any exercised path | sanitizers, static analysis, and boundary-input fuzzing |
 | The transport layout is frozen within a major version | an ABI layout-descriptor gate |
-| Every documented claim maps to a runnable artifact | a doc-claim tier, and a comparison that states where jmpxx loses |
 
 The `jmpxx-verify` tool reproduces each measurement. `python3 verify/acceptance.py
 --build-dir build` runs every tier and gate and prints one release verdict.
