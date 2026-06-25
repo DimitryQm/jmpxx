@@ -90,17 +90,53 @@
 #define JMPXX_UNLIKELY(x) (static_cast<bool>(x))
 #endif
 
-// hardening switch. JMPXX_HARDENED=1 makes the narrow-contract accessors
-// (assume_value / assume_error) check their precondition and fail fast on
-// violation; the wide accessors (value / error) check unconditionally regardless
-// of this switch. Default: on unless NDEBUG is set. Override with -DJMPXX_HARDENED.
-#if !defined(JMPXX_HARDENED)
-#if defined(NDEBUG)
-#define JMPXX_HARDENED 0
+// Hardening mode. The vocabulary follows the standard-library hardening names:
+// none removes narrow-contract checks, fast checks the narrow value/error accessors,
+// and extensive also validates defensive boundary invariants before dispatch. The
+// old binary JMPXX_HARDENED switch remains source-compatible: 0 maps to none, any
+// nonzero value maps to fast, and a consumer that only reads JMPXX_HARDENED still
+// sees 0 or 1.
+#define JMPXX_HARDENING_NONE 0
+#define JMPXX_HARDENING_FAST 1
+#define JMPXX_HARDENING_EXTENSIVE 2
+
+#if !defined(JMPXX_HARDENING_MODE)
+#if defined(JMPXX_HARDENED)
+#if JMPXX_HARDENED
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_FAST
 #else
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_NONE
+#endif
+#elif defined(NDEBUG)
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_NONE
+#else
+#define JMPXX_HARDENING_MODE JMPXX_HARDENING_FAST
+#endif
+#endif
+
+#if JMPXX_HARDENING_MODE != JMPXX_HARDENING_NONE && \
+    JMPXX_HARDENING_MODE != JMPXX_HARDENING_FAST && \
+    JMPXX_HARDENING_MODE != JMPXX_HARDENING_EXTENSIVE
+#error "JMPXX_HARDENING_MODE must be JMPXX_HARDENING_NONE, JMPXX_HARDENING_FAST, or JMPXX_HARDENING_EXTENSIVE."
+#endif
+
+#if defined(JMPXX_HARDENED)
+#if (JMPXX_HARDENED && JMPXX_HARDENING_MODE < JMPXX_HARDENING_FAST) || \
+    (!JMPXX_HARDENED && JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST)
+#error "JMPXX_HARDENED conflicts with JMPXX_HARDENING_MODE."
+#endif
+#else
+#if JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST
 #define JMPXX_HARDENED 1
+#else
+#define JMPXX_HARDENED 0
 #endif
 #endif
+
+#define JMPXX_HARDENING_FAST_ENABLED \
+  (JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST)
+#define JMPXX_HARDENING_EXTENSIVE_ENABLED \
+  (JMPXX_HARDENING_MODE >= JMPXX_HARDENING_EXTENSIVE)
 
 // diagnostic-layer switch. JMPXX_DIAGNOSTICS_ENABLED=1 turns on the debug-only
 // diagnostic layer: the rich policy captures a failure's origin and the causal

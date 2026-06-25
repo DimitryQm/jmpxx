@@ -9,11 +9,9 @@
 // one error family from another; only typeid and dynamic_cast need RTTI, so the
 // dispatch works under -fno-rtti.
 //
-// This is a hosted extension. Including it is never required to use the minimal
-// core, and the minimal core never pulls it in. It is written to the same
-// freestanding-friendly discipline as the core (it includes no hosted header), so
-// a boundary in freestanding code can still erase its errors, but it is policy,
-// not core, and is selected explicitly.
+// Hosted extension. The minimal core never pulls it in, but the header follows the
+// core's freestanding-friendly discipline and includes no hosted header, so a
+// freestanding boundary can still erase errors when it selects this policy explicitly.
 #ifndef JMPXX_ERASED_HPP
 #define JMPXX_ERASED_HPP
 
@@ -53,6 +51,11 @@ class error_domain {
 
 namespace detail {
 
+[[nodiscard]] constexpr int fold_generic_error(int code, int domain_tag) noexcept {
+  return static_cast<int>(static_cast<unsigned>(code) ^
+                          (static_cast<unsigned>(domain_tag) << 16));
+}
+
 // The built-in domain for errors that carry only a bare code, so the same
 // call-site source that constructs a minimal error constructs an erased one. It
 // names itself and renders every value with one family-level string, because a
@@ -82,21 +85,30 @@ class erased_error {
   int value_ = 0;
   const error_domain* domain_ = &generic_domain();
 
+  [[nodiscard]] constexpr const error_domain* checked_domain() const noexcept {
+    if constexpr (JMPXX_HARDENING_EXTENSIVE_ENABLED) {
+      if (JMPXX_UNLIKELY(domain_ == nullptr))
+        platform::fail_fast("jmpxx::erased_error: null error domain");
+    }
+    return domain_;
+  }
+
  public:
   constexpr erased_error() noexcept = default;
 
   // Policy-uniform construction from a bare code, matching the minimal error's
   // shape so identical call-site source serves both policies. The second argument
-  // is the minimal error's coarse domain tag, folded into the value as
-  // code ^ (domain_tag << 16). The fold round-trips a code and a tag that each fit
-  // in 16 bits, which covers the common small-code case at no extra storage, but it
-  // is coarse, not lossless in general: a code that uses the high 16 bits can collide
-  // with a tagged code, for example erased_error(0, 1) and erased_error(65536, 0)
-  // both hold 65536. Code that must carry a full-width code and a distinct domain
-  // across a boundary names a domain descriptor through the (value, error_domain&)
-  // constructor below instead.
+  // is the minimal error's coarse domain tag, folded into the value by unsigned
+  // arithmetic over the low bits of the two integers. The fold round-trips a code
+  // and a tag that each fit in 16 bits, which covers the common small-code case at
+  // no extra storage, but it is coarse, not lossless in general: a code that uses
+  // the high 16 bits can collide with a tagged code, for example erased_error(0, 1)
+  // and erased_error(65536, 0) both hold 65536. Code that must carry a full-width
+  // code and a distinct domain across a boundary names a domain descriptor through
+  // the (value, error_domain&) constructor below instead.
   constexpr explicit erased_error(int code, int domain_tag = 0) noexcept
-      : value_(code ^ (domain_tag << 16)), domain_(&generic_domain()) {}
+      : value_(detail::fold_generic_error(code, domain_tag)),
+        domain_(&generic_domain()) {}
 
   // Boundary construction: a component erases its own error into the uniform form
   // by naming its domain. The value is the component's own code within that
@@ -110,17 +122,19 @@ class erased_error {
 
   [[nodiscard]] constexpr int value() const noexcept { return value_; }
   [[nodiscard]] constexpr const error_domain& domain() const noexcept {
-    return *domain_;
+    return *checked_domain();
   }
 
   // Same-domain membership by descriptor identity, without RTTI.
   [[nodiscard]] constexpr bool in_domain(const error_domain& dom) const noexcept {
-    return domain_ == &dom;
+    return checked_domain() == &dom;
   }
 
-  [[nodiscard]] const char* domain_name() const noexcept { return domain_->name(); }
+  [[nodiscard]] const char* domain_name() const noexcept {
+    return checked_domain()->name();
+  }
   [[nodiscard]] const char* message() const noexcept {
-    return domain_->message(value_);
+    return checked_domain()->message(value_);
   }
 
   // Two erased errors are equal when they name the same domain and the same value.

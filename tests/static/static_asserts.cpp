@@ -14,6 +14,12 @@ using namespace jmpxx;
 static_assert(JMPXX_VERSION == JMPXX_VERSION_MAJOR * 10000 +
                                    JMPXX_VERSION_MINOR * 100 + JMPXX_VERSION_PATCH);
 static_assert(sizeof(JMPXX_VERSION_STRING) >= sizeof("0.0.0"));
+static_assert(JMPXX_HARDENING_NONE == 0);
+static_assert(JMPXX_HARDENING_FAST == 1);
+static_assert(JMPXX_HARDENING_EXTENSIVE == 2);
+static_assert(JMPXX_HARDENING_MODE >= JMPXX_HARDENING_NONE);
+static_assert(JMPXX_HARDENING_MODE <= JMPXX_HARDENING_EXTENSIVE);
+static_assert(JMPXX_HARDENED == (JMPXX_HARDENING_MODE >= JMPXX_HARDENING_FAST));
 
 // ABI freeze, checked on every cell the static tier builds on. The minimal error's
 // size, alignment, and public field offsets are part of the layout the v0.1.0 ABI
