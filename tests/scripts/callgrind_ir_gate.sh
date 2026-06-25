@@ -5,11 +5,11 @@
 # time. The gate runs the jmpxx and the hand-written kernels under callgrind over an identical
 # call loop and bounds the jmpxx instruction count to a small multiple of the hand-written one,
 # so a jmpxx chain that executes more instructions than the branch it replaces fails the build.
-# It has teeth in the same run: the deliberately slowed kernel must exceed the bound, so a gate
+# The deliberately slowed kernel runs in the same script and must exceed the bound, so a gate
 # that would pass a real regression fails here first.
 #
 # An instruction count is not a cycle count. callgrind models no pipeline, cache, or branch
-# prediction, so this gate proves instruction parity on the measured region, not the wall-clock
+# prediction, so this gate checks instruction parity on the measured region, not the wall-clock
 # sad-path cost, which the distribution benchmark measures.
 set -euo pipefail
 BENCH="${1:?jmpxx-bench path}"
@@ -49,9 +49,9 @@ if [ "$((100 * jx))" -gt "$((BOUND_PCT * hw))" ]; then
   echo "FAIL: jmpxx instructions $jx exceed ${BOUND_PCT}% of hand-written $hw"
   exit 1
 fi
-# Teeth: the slowed kernel must trip the same bound, or the gate is vacuous.
+# Inverted self-test: the slowed kernel must trip the same bound.
 if [ "$((100 * slow))" -le "$((BOUND_PCT * hw))" ]; then
-  echo "FAIL(teeth): the slowed kernel did not exceed the bound; the gate proves nothing"
+  echo "FAIL(inverted): the slowed kernel did not exceed the bound"
   exit 1
 fi
 

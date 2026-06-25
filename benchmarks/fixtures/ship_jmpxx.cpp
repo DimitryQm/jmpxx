@@ -6,8 +6,8 @@
 // claim is about the optimized, inlined result a real build produces, and at -O2 this chain
 // folds to the same branchless select the hand-written baseline does. The benchmark kernels
 // under ../kernels measure a different thing, the per-frame mechanism cost across real frames,
-// so they keep their frames non-inlined; the two fixtures are deliberately separate because
-// they prove separate properties.
+// so they keep their frames non-inlined; the two fixtures are separate because they check
+// separate properties.
 #include "../kernels/spec.hpp"
 
 #include <jmpxx/core.hpp>

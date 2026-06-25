@@ -1,14 +1,14 @@
 <!-- SPDX-License-Identifier: MIT -->
 # jmpxx documentation
 
-jmpxx is a header-only C++20 library for non-local, RAII-correct, exception-free error
-propagation. The [project README](../README.md) is the introduction and the first
-example. This directory holds the guides, the API reference, the performance comparison,
-and the tooling reference.
+jmpxx is a header-only C++20 library for non-local, RAII-correct,
+exception-free error propagation. The [project README](../README.md) is the
+introduction and first example. This directory holds the guides, reference pages,
+comparison data, and tooling reference.
 
 ## Start here
 
-- [why-no-exceptions.md](why-no-exceptions.md): why this audience disables exceptions and
+- [why-no-exceptions.md](why-no-exceptions.md): why exceptions get disabled and
   where jmpxx fits.
 - [cookbook.md](cookbook.md): task-oriented recipes, each drawn from a runnable example.
 - Migrating from what you use now:
@@ -19,10 +19,8 @@ and the tooling reference.
 ## Performance
 
 [comparison.md](comparison.md) measures jmpxx against a hand-written branch,
-`std::expected`, `std::error_code`, language exceptions, Boost.Outcome, Boost.LEAF, and
-tl::expected, and states where jmpxx wins and where it does not. The happy path is the
-same machine code as a hand-written branch, and the failure path is bounded and
-deterministic where a thrown exception is neither.
+`std::expected`, `std::error_code`, language exceptions, Boost.Outcome,
+Boost.LEAF, and tl::expected, and states where jmpxx wins and where it does not.
 
 ## API reference
 
@@ -32,6 +30,8 @@ deterministic where a thrown exception is neither.
   representations over one transport.
 - [diagnostics.md](reference/diagnostics.md): the debug-only origin and causal chain,
   free in release.
+- [hardening.md](reference/hardening.md): graded fail-fast checks for contract
+  violations, with runtime probes and codegen absence gates.
 - [interop.md](reference/interop.md): the `std::expected`, `std::error_code`, exception,
   and optional-like bridges.
 - [reflect.md](reference/reflect.md): the optional reflection layer that derives error
@@ -50,7 +50,7 @@ deterministic where a thrown exception is neither.
 
 - [verification.md](reference/verification.md): `jmpxx-verify` and `jmpxx-bench`, the
   gates that back every cost claim, and how to reproduce the comparison.
-- [lint.md](reference/lint.md): `jmpxx-lint`, the companion check set that enforces the
+- [lint.md](reference/lint.md): `jmpxx-lint`, the Clang-based checks that enforce the
   usage discipline in consumer code.
 
 The [reference application](../reference_app/README.md) consumes jmpxx through

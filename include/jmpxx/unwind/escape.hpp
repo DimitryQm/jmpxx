@@ -4,8 +4,7 @@
 // escape_scope marks the single landing boundary a region's escapes return to, and
 // eject performs the non-local escape from any call depth below it. Between them the
 // platform unwinder runs the destructor of every automatic object on the path, so the
-// intermediate frames need no propagation construct in their source. This is the
-// closest standard-C++ approach to a literal non-local jump that still preserves RAII.
+// intermediate frames need no propagation construct in their source.
 //
 // This surface is reached only through jmpxx/unwind.hpp, which refuses a configuration
 // without unwind cleanup tables before this header is seen. It is never on a default
@@ -90,8 +89,8 @@ JMPXX_NOINLINE result<T, E> run_body(Body&& body) {
 // The error type E must match the receiving escape_scope<E>. On the library-driven
 // ABIs the escape transits a frame's typed catch and a cooperative catch-all (one
 // that rethrows abi::__forced_unwind); a catch-all that swallows it without rethrowing
-// is turned into a diagnosed termination rather than a silent mis-land. A frame on the
-// path must not be marked noexcept, which would terminate the unwind at that boundary.
+// is turned into a diagnosed termination rather than a silent wrong landing. A frame on
+// the path must not be marked noexcept, which would terminate the unwind there.
 template <class E>
 detail::never eject(E err) {
   static_assert(available(),

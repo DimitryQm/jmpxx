@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-// A recursive configuration reference resolver, and the field-use home of the
-// experimental non-local unwind arm.
+// A recursive configuration reference resolver that opts into the experimental
+// non-local unwind arm.
 //
 // A [values] table may interpolate other values with ${other}; resolving one value
 // recurses into each reference it embeds and substitutes the result. The recursion is
@@ -12,9 +12,9 @@
 // restored and the resolver is reusable afterward. That RAII-correctness across a
 // non-local escape is the property the arm provides and a bare longjmp would break.
 //
-// This is the opt-in surface, so the translation unit that includes it is built with
-// exception cleanup tables, unlike the portable config_validate program. That cost is
-// the arm's, and the reference documents it.
+// Opt-in surface: the translation unit that includes it is built with exception cleanup
+// tables, unlike the portable config_validate program. That cost is the arm's, and the
+// reference documents it.
 #ifndef JMPXX_APP_RESOLVE_HPP
 #define JMPXX_APP_RESOLVE_HPP
 
@@ -105,9 +105,9 @@ class resolver {
     return out;
   }
 
-  // Record the offending key out of band and eject the kind and depth. This is not
-  // marked noreturn so the arm keeps the cleanup tables the escape depends on; it does
-  // not return at run time.
+  // Record the offending key out of band and eject the kind and depth. This function is
+  // not marked noreturn so the arm keeps the cleanup tables the escape depends on; it
+  // does not return at run time.
   void eject_with(int k, const std::string& key, int depth) {
     error_key_ = key;
     jmpxx::unwind::eject(jmpxx::error(k, depth));

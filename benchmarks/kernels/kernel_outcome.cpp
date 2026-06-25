@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // The Boost.Outcome kernel. Outcome's default result throws std::system_error on a bad
-// access, which the exception-free niche cannot use, so this kernel uses outcome::unchecked
+// access, which an exception-free build cannot use, so this kernel uses outcome::unchecked
 // (the all_narrow no-value policy), whose accessors never throw, and reads through
 // assume_value / assume_error. Propagation is BOOST_OUTCOME_TRY, Outcome's own early-return
 // macro, the direct counterpart of JMPXX_TRY. The error is a two-int POD so the transport

@@ -1,11 +1,11 @@
 <!-- SPDX-License-Identifier: MIT -->
 # How jmpxx compares
 
-This page measures jmpxx against the error-handling mechanisms a C++ engineer would otherwise
-reach for, and it states where jmpxx wins and where it does not. Every number here is produced by
-the verification surface and is reproducible with the commands given at the end. The two central
-claims are gated in continuous integration and fail the build on a regression. The incumbent
-comparison is measured data, labeled with the configuration it was taken on.
+Compare jmpxx against the error-handling mechanisms a C++ engineer would otherwise reach for,
+including the cases where it does not win. Every number here is produced by the verification
+surface and is reproducible with the commands at the end. The two central claims are gated in
+continuous integration and fail the build on a regression. The incumbent comparison is measured
+data, labeled with the configuration it was taken on.
 
 The mechanisms compared are a hand-written branch on a status flag (the code jmpxx replaces),
 `std::expected` with hand-threaded checks, a `std::error_code` threaded by hand, language
@@ -29,8 +29,8 @@ instructions per call and the hand-written chain executes 137.
 **The sad path is bounded and deterministic.** When a failure propagates, jmpxx returns it through
 the chain as an ordinary value. A language exception instead drives the unwinder, which at the same
 depth executes about 29,000 instructions per throw against jmpxx's 128, and in wall-clock time runs
-roughly forty to fifty times longer with a far wider tail. That gap is the reason the audience
-disables exceptions, and it is the property jmpxx preserves while keeping destructors correct.
+roughly forty to fifty times longer with a far wider tail. That gap is why many projects
+disable exceptions, and it is the property jmpxx preserves while keeping destructors correct.
 
 ## Where jmpxx does not win
 
@@ -48,7 +48,7 @@ is zero overhead over a hand-written branch, not a win over a thrown exception's
 **Boost.LEAF is the closest rival, and the two metrics disagree about it.** LEAF, like jmpxx, keeps
 the error payload out of the return path, and on this machine its wall-clock happy path is faster
 than jmpxx's. Under callgrind LEAF executes 275 instructions per happy-path call to jmpxx's 136,
-because its machinery to stash an error id is more instructions that pipeline well. This is the
+because its machinery to stash an error id is more instructions that pipeline well. That is the
 limit of an instruction count: callgrind models no pipeline, cache, or branch prediction, so it
 measures static work and not time. Both numbers are reported here. jmpxx's transport is half LEAF's
 size, twelve bytes against twenty-four, and a jmpxx failure carries its code in band where LEAF's

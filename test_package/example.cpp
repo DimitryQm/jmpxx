@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Built and run by `conan create` against the packaged jmpxx, to prove the Conan
+// Built and run by `conan create` against the packaged jmpxx, checking that the Conan
 // package is consumable through find_package and the jmpxx::jmpxx target.
 #include <jmpxx/core.hpp>
 

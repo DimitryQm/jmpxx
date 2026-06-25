@@ -1,9 +1,9 @@
-# Teeth for the ABI layout gate: a frozen type's layout changed without a version
+# Known-bad ABI layout golden: a frozen type's layout changed without a version
 # bump. This golden claims error is twelve bytes with domain moved to offset 8, the
 # shape error would take if a third field were inserted. The real error is eight
 # bytes with domain at offset 4, so the emitted descriptor diverges from this golden
 # and the gate fails, which is the unversioned-layout-change failure the gate exists
-# to catch. The gate that passed this would have no teeth.
+# to catch. A gate that passed this would miss the layout change.
 # jmpxx ABI layout descriptor (frozen public types, ship/release configuration)
 pointer_bits=64
 error sizeof=12 alignof=4 trivially_copyable=1 standard_layout=1 code=0 domain=8

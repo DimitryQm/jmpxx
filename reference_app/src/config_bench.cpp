@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// config_bench: the field-use head-to-head. It implements the application's own [server]
+// config_bench: the application-level head-to-head. It implements the application's own [server]
 // validation twice, once with jmpxx result and JMPXX_TRY and once with std::expected and
 // hand-threaded checks, over a configuration loaded by toml++, and reports the per-validation
 // latency of each, so the comparison is on the application's real logic and not a synthetic kernel.
@@ -9,8 +9,8 @@
 // That extraction also records one field finding: in the full operation the parse dwarfs the error
 // handling, so the mechanism is chosen for its guarantees and not its speed.
 //
-// toml++ provides the configuration the benchmark validates. jmpxx provides the result type and the
-// propagation for the jmpxx half of the comparison, so removing it removes that half.
+// toml++ is the configuration source. jmpxx supplies the result and propagation half of
+// the comparison, so removing it removes that half.
 #include <jmpxx/core.hpp>
 
 #include <toml++/toml.hpp>
@@ -39,8 +39,9 @@ struct cfg {
 
 enum err_code { e_host = 1, e_port = 2, e_workers = 3 };
 
-// The jmpxx validation: three field checks, each a non-inlined function returning a result, with
-// JMPXX_TRY propagating the first failure to one landing. This is the shape config_validate uses.
+// The jmpxx validation: three field checks, each a non-inlined function returning a
+// result, with JMPXX_TRY propagating the first failure to one landing. This matches
+// config_validate's shape.
 [[gnu::noinline]] jmpxx::result<int, jmpxx::error> jx_host(const raw& r) {
   if (r.host_len == 0) return jmpxx::fail(jmpxx::error(e_host));
   return r.host_len;

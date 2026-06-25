@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Adopting jmpxx at a seam in a codebase that already speaks the standard error
+// Adopting jmpxx at a boundary in a codebase that already speaks the standard error
 // vocabularies. The bridges convert to and from std::expected and std::error_code
 // without losing information, and the optional-like adapters turn another library's
 // absent value into a failure in one call.

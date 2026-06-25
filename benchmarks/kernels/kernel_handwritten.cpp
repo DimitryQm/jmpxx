@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // The hand-written baseline: the depth-8 chain a programmer compiling with
 // exceptions disabled writes without jmpxx, threading the error back through every
-// frame by hand. This is the form the zero-overhead claim is measured against, so it
+// frame by hand. The zero-overhead claim is measured against this form, so it
 // carries the same data jmpxx does in the same layout: a union of the value and the
 // error discriminated by a flag, returned by value, with a manual check-and-return at
 // every frame. If jmpxx adds any cost over this, the size, codegen, and runtime gates

@@ -10,8 +10,8 @@
 // Two fairness controls live here. JXB_NOINLINE_FRAMES forces every frame to be a
 // real stack frame, so the propagation actually crosses frame boundaries; without
 // it the optimizer collapses an entire chain into a few branchless instructions and
-// every mechanism measures as free, which proves the zero-overhead claim (the
-// codegen golden does that) but tells nothing about per-hop mechanism cost. The
+// every mechanism measures as free. The codegen golden checks that optimized case; it
+// tells nothing about per-hop mechanism cost. The
 // depth and the per-frame work are fixed constants every kernel reads, so no kernel
 // can quietly do less work than another.
 #ifndef JMPXX_BENCH_SPEC_HPP
@@ -42,8 +42,8 @@ inline constexpr int jxb_frame_step = 1;
 // kept as distinct stack frames; otherwise the optimizer is free to inline them,
 // which is the configuration the size and compile-cost fixtures use because it is
 // what ships. Asked for through the compiler's own spelling; the benchmark kernels
-// are dev-only translation units, not the fenced engine, so a direct attribute here
-// does not cross the platform fence the engine headers hold.
+// are dev-only translation units, not public headers, so a direct attribute here
+// does not cross the platform fence the library headers hold.
 #if defined(JXB_NOINLINE_FRAMES)
 #if defined(__GNUC__) || defined(__clang__)
 #define JXB_FRAME_ATTR __attribute__((noinline))

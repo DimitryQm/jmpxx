@@ -1,10 +1,10 @@
 <!-- SPDX-License-Identifier: MIT -->
-# Companion check set
+# jmpxx-lint
 
-`jmpxx-lint` enforces the library's usage discipline in consumer code. It is an out-of-tree Clang
-tool built against the LLVM tooling libraries, distinct from the library and never a runtime or
-include dependency of it: a project uses it the way it uses clang-tidy, not by linking it. It reads
-the abstract syntax tree of a consumer translation unit and reports three usage mistakes.
+Use `jmpxx-lint` when you want the library's usage discipline checked in consumer code. It is an
+out-of-tree Clang tool built against the LLVM tooling libraries, distinct from the library and never
+a runtime or include dependency: use it the way you use clang-tidy, not by linking it. It reads the
+abstract syntax tree of a consumer translation unit and reports three usage mistakes.
 
 ## Checks
 
@@ -21,7 +21,7 @@ misuse, a defined event, so the check does not flag them.
 `jmpxx-manual-propagation` flags a hand-written `if (!r) return fail(r.error());` that forwards a
 result's failure, the pattern `JMPXX_TRY` expresses in one line.
 
-## No false verdict
+## False positives
 
 The checks are biased toward silence, because a check that flags correct code is worse than no
 check. The unchecked-access check suppresses an access whenever the result is checked anywhere in the
@@ -33,7 +33,7 @@ result for code that uses jmpxx correctly.
 ## Building
 
 The tool needs the LLVM and Clang development libraries, version 18 on the development host. It is
-built with the rest of the project when they are present and is skipped when they are absent.
+built with the rest of the tree when they are present and is skipped when they are absent.
 
 ```sh
 cmake -S . -B build -G Ninja \

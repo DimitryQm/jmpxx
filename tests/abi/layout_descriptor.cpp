@@ -10,7 +10,7 @@
 // golden and fail the build on an unversioned change. docs/reference/abi.md states
 // which types are frozen and why.
 //
-// It is compiled in the configuration the niche ships, release with exceptions and
+// It is compiled in the strict release configuration, with exceptions and
 // RTTI disabled, because that is the layout that ships: under NDEBUG the rich
 // policy's diagnostic handle is compiled out and rich_error is its frozen form,
 // exactly the minimal error. The static assertions below pin the

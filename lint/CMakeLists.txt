@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 # The out-of-tree companion check set. jmpxx-lint is built against the installed LLVM and Clang
 # development libraries; it is a developer tool, never a runtime or include dependency of the
-# library. The whole directory is skipped when those libraries are absent, so a build without
-# them still produces the rest of the project.
+# library. The whole directory is skipped when those libraries are absent, so the rest
+# of the build still completes.
 cmake_minimum_required(VERSION 3.20)
 
 # Pin to the LLVM toolset whose development package is complete on this environment, while

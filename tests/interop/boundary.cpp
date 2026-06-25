@@ -56,7 +56,8 @@ int main() {
   }
 
   // 3. a payload length that overruns the buffer is rejected, not trusted into an
-  // over-read. This is the check the sanitizer would catch if it were missing.
+  // over-read. The sanitizer would catch the resulting over-read if this check were
+  // missing.
   {
     buf x;
     x.byte(1);

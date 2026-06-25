@@ -30,15 +30,15 @@ with exceptions disabled and in a freestanding build on a toolchain whose
 `<expected>` compiles there.
 
 ## `std::error_code` (`jmpxx/interop/error_code.hpp`)
-This is a hosted extension, because `<system_error>` is not part of the freestanding
-subset. It serves two directions.
+Hosted extension: `<system_error>` is not part of the freestanding subset. The bridge
+serves two directions.
 
 Adopt a foreign code. A `std::error_code` from another library is carried into jmpxx
 without loss as a `result<T, std::error_code>`, because the transport is generic over
 its error type. The `error_code` travels verbatim, so its category identity and value
 are preserved exactly. `jmpxx::fail(ec)` builds the failure, and a
 `std::expected<T, std::error_code>` bridges through `from_expected` into the same
-`result<T, std::error_code>`. This is the lossless path for a code that originates
+`result<T, std::error_code>`. Use this lossless path for a code that originates
 outside jmpxx and needs nothing from this header.
 
 Expose a jmpxx error. `jmpxx::to_error_code(error)` presents a `jmpxx::error` to
@@ -66,7 +66,7 @@ on the code and domain recovered through `from_error_code` rather than on catego
 identity.
 
 ## Language exceptions (`jmpxx/interop/exception.hpp`)
-The opt-in boundary between a propagated failure and a thrown exception, for the seam
+The opt-in boundary between a propagated failure and a thrown exception, for the point
 where exception-free code must call into, or be called from, exception-based code.
 `jmpxx::value_or_throw(result<T, E>)` returns the value on success and throws
 `jmpxx::error_exception<E>` carrying the error on failure.

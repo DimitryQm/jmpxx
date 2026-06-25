@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // A minimal consumer of jmpxx pulled in through add_subdirectory or FetchContent. It
 // uses the result transport and single-construct propagation, so a successful build
-// and run prove the target and its include path are wired correctly through the
+// and run check that the target and its include path are wired correctly through the
 // channel. It exits non-zero if the library does not behave as expected.
 #include <jmpxx/core.hpp>
 

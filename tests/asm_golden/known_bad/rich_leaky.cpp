@@ -3,8 +3,8 @@
 // for a diagnostic facility that was not fenced out of release: it captures a
 // source location and folds it into the result even under NDEBUG. That capture adds
 // instructions and materializes the function-name string into read-only data, so
-// the rich function's release code diverges from the minimal function's. If the
-// gate passes this fixture, the dual-personality zero-cost proof has no teeth.
+// the rich function's release code diverges from the minimal function's. If the gate
+// passes this fixture, the release-diff check missed a real zero-cost regression.
 #include "jmpxx/core.hpp"
 #include "jmpxx/diagnostics.hpp"
 

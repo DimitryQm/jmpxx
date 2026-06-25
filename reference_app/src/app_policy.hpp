@@ -3,8 +3,8 @@
 // picks the rich policy and the diagnostic layer; otherwise the minimal policy is
 // used. Everything below the aliases here, and every call site in the application,
 // is identical source under either policy: the build flag is the only difference.
-// This is the application-side half of the dual-personality guarantee, and the two
-// builds are the same source file, so a diff between them is empty.
+// The application-side half of the dual-personality guarantee keeps the two builds on
+// the same source file, so a diff between them is empty.
 #ifndef JMPXX_APP_POLICY_HPP
 #define JMPXX_APP_POLICY_HPP
 

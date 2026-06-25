@@ -23,7 +23,7 @@ cmake --build build
 ./build/examples/example_result_basics
 ```
 
-The portable examples build with `-fno-exceptions -fno-rtti`, the niche configuration.
+The portable examples build with `-fno-exceptions -fno-rtti`, the strict configuration.
 `unwind_arm` is built with exceptions enabled, because the experimental arm requires
 unwind tables; see [../docs/reference/unwind.md](../docs/reference/unwind.md).
 `reflection` builds on a C++20 toolchain through the hand-written fallback and on a

@@ -26,7 +26,7 @@
 #include "jmpxx/core/config.hpp"
 
 #if !JMPXX_HAS_EXCEPTIONS
-#error "jmpxx/unwind.hpp requires unwind cleanup tables, which are emitted only when C++ exceptions are enabled. Compile the translation unit that opts into the experimental unwind arm with exceptions enabled (the default; do not pass -fno-exceptions). Without cleanup tables a forced unwind would skip destructors, so the arm refuses this configuration rather than break RAII silently. The portable, exception-free default is jmpxx/core.hpp with JMPXX_TRY."
+#error "jmpxx/unwind.hpp requires C++ exceptions enabled for unwind cleanup tables; use jmpxx/core.hpp for the portable no-exceptions path."
 #endif
 
 #include "jmpxx/unwind/escape.hpp"

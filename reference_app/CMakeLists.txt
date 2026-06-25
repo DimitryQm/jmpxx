@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: MIT
-# The cumulative field-use reference application. Built standalone, it consumes
+# The cumulative reference application. Built standalone, it consumes
 # jmpxx through find_package (a real packaging channel) and pulls two third-party
 # libraries through FetchContent: toml++ for the TOML configuration and glaze for the
 # JSON access policy. When configured inside the jmpxx tree it reuses the in-tree
 # target instead.
 #
-# The same source is built twice, once under the minimal policy and once under the
-# rich policy, to demonstrate that selecting a policy changes neither the call sites
-# nor the behavior, only what a failure can tell you. The rich build is compiled with
-# the diagnostic layer on so a deep failure surfaces its origin and chain. Both
+# The same source is built three times: minimal, rich diagnostics, and rich
+# diagnostics under extensive hardening with trace capture. Selecting a policy or
+# a hardening posture changes neither the call sites nor the behavior, only what a
+# failure can tell you and which contract violations are fail-fast checked. All
 # builds adopt glaze's std::expected through the interop bridge, so the application
 # exercises the std::expected, type-erased, and minimal-or-rich representations
 # together over one transport.
@@ -28,19 +28,24 @@ FetchContent_Declare(glaze
   GIT_TAG v7.8.3)
 FetchContent_MakeAvailable(tomlplusplus glaze)
 
-# Two builds from one source. The minimal build uses the default error policy; the
-# rich build defines APP_POLICY_RICH and turns the diagnostic layer on.
+# Three builds from one source. The minimal build uses the default error policy; the
+# rich build defines APP_POLICY_RICH and turns the diagnostic layer on; the hardened
+# build also enables trace capture and extensive portable hardening.
 add_executable(config_validate_minimal src/config_validate.cpp)
 add_executable(config_validate_rich src/config_validate.cpp)
+add_executable(config_validate_hardened src/config_validate.cpp)
 target_compile_definitions(config_validate_rich PRIVATE
   APP_POLICY_RICH JMPXX_DIAGNOSTICS_ENABLED=1)
+target_compile_definitions(config_validate_hardened PRIVATE
+  APP_POLICY_RICH JMPXX_DIAGNOSTICS_ENABLED=1 JMPXX_STACKTRACE=1
+  JMPXX_HARDENING_MODE=JMPXX_HARDENING_EXTENSIVE)
 
-foreach(app config_validate_minimal config_validate_rich)
+foreach(app config_validate_minimal config_validate_rich config_validate_hardened)
   target_link_libraries(${app} PRIVATE
     jmpxx::jmpxx tomlplusplus::tomlplusplus glaze::glaze)
   # C++23 for the std::expected bridge the glaze policy boundary uses, and for glaze.
   target_compile_features(${app} PRIVATE cxx_std_23)
-  # Build the niche the library targets: exceptions and RTTI disabled, toml++ in its
+  # Build the strict configuration the library targets: exceptions and RTTI disabled, toml++ in its
   # no-exceptions mode. glaze returns std::expected and runs with exceptions off.
   target_compile_definitions(${app} PRIVATE TOML_EXCEPTIONS=0)
   if(NOT MSVC)
@@ -58,9 +63,9 @@ target_link_libraries(config_resolve PRIVATE jmpxx::jmpxx tomlplusplus::tomlplus
 target_compile_features(config_resolve PRIVATE cxx_std_23)
 target_compile_definitions(config_resolve PRIVATE TOML_EXCEPTIONS=0)
 
-# config_bench is the field-use head-to-head: the application's [server] validation implemented
+# config_bench is the application-level head-to-head: the application's [server] validation implemented
 # with jmpxx and again with std::expected, timed on a real loaded config. Built optimized in the
-# niche configuration so the measurement reflects what ships.
+# strict configuration so the measurement reflects what ships.
 add_executable(config_bench src/config_bench.cpp)
 target_link_libraries(config_bench PRIVATE jmpxx::jmpxx tomlplusplus::tomlplusplus)
 target_compile_features(config_bench PRIVATE cxx_std_23)
@@ -71,7 +76,7 @@ endif()
 
 enable_testing()
 set(CFG ${CMAKE_CURRENT_SOURCE_DIR}/configs)
-foreach(app config_validate_minimal config_validate_rich)
+foreach(app config_validate_minimal config_validate_rich config_validate_hardened)
   add_test(NAME ${app}.valid COMMAND ${app} ${CFG}/valid.toml)
   add_test(NAME ${app}.invalid_port COMMAND ${app} ${CFG}/invalid_port.toml)
   add_test(NAME ${app}.missing_host COMMAND ${app} ${CFG}/missing_host.toml)

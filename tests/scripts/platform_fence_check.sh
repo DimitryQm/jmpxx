@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: MIT
 # Platform-fence scan. Every platform-specific or ABI-specific construct must live
 # inside the platform abstraction unit (include/jmpxx/platform/) or the separately
-# fenced unwind arm (include/jmpxx/unwind/). This scan reads every engine header
+# fenced unwind arm (include/jmpxx/unwind/). This scan reads every public header
 # outside those two directories and fails if it finds a raw compiler-identity macro,
 # an operating-system or architecture detection macro, a platform or ABI system
-# header, or inline assembly. The rest of the engine asks for target facts through
+# header, or inline assembly. The rest of the library asks for target facts through
 # the JMPXX_COMPILER_*, JMPXX_OS_*, and JMPXX_ARCH_* tokens that platform/detect.hpp
 # defines, so a raw target macro outside the fence is the leak this scan catches.
 #

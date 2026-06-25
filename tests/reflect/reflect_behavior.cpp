@@ -2,7 +2,7 @@
 // Behavioral tier for the reflection forward layer. Building and running this file
 // exercises every derived-metadata surface, and it is built on both a C++20 toolchain
 // (the hand-written fallback) and a reflection-capable one (the reflection path) so a
-// run on each proves the two produce the same results. The expected values below are
+// run on each checks that the two produce the same results. The expected values below are
 // the metadata of the test enum; whichever path computed them, they must match. The
 // program prints what it observed and exits non-zero on any mismatch.
 #include <jmpxx/core.hpp>

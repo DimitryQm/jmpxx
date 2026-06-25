@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Consumed by `conan create` to prove the packaged jmpxx is usable: it finds the
+# Consumed by `conan create` to check that the packaged jmpxx is usable: it finds the
 # package, links the jmpxx::jmpxx CMake target, and runs a program built against it.
 import os
 

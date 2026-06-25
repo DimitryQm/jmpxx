@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // A consumer of the single-header amalgamation. It includes only <jmpxx.hpp> and uses
 // the transport, the rich policy, and the reflection forward layer, so a successful
-// build proves the one generated header is self-contained across the hosted surface.
+// build checks that the one generated header is self-contained across the hosted surface.
 #include <jmpxx.hpp>
 
 #include <string_view>

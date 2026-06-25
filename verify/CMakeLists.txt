@@ -5,12 +5,11 @@ target_link_libraries(jmpxx-verify PRIVATE jmpxx::jmpxx)
 # the interop probe where the standard library provides <expected>; the bridge
 # self-gates, so the harness still builds where it does not.
 target_compile_features(jmpxx-verify PRIVATE cxx_std_23)
-# The harness is the agent's eyes on the live engine, so it is built with the
-# diagnostic layer on regardless of build type: the policies, diagnostics, and
-# alloc probes exercise the rich policy's out-of-band store directly. The
-# release-diff probe compiles its fixtures in a release configuration of its own,
-# so the proof that the rich policy is free in release does not depend on how the
-# harness itself is built.
+# The harness needs direct visibility into the library's live behavior, so it is
+# built with the diagnostic layer on regardless of build type: the policies,
+# diagnostics, and alloc probes exercise the rich policy's out-of-band store directly. The
+# release-diff probe compiles its fixtures in a release configuration of its own, so the
+# release zero-cost check does not depend on how the harness itself is built.
 target_compile_definitions(jmpxx-verify PRIVATE
   JMPXX_INCLUDE_DIR="${CMAKE_SOURCE_DIR}/include"
   JMPXX_BENCH_KERNELS_DIR="${CMAKE_SOURCE_DIR}/benchmarks/kernels"

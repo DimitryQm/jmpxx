@@ -8,16 +8,16 @@ compiles to the same machine code as a hand-written branch on a status flag. A
 committed codegen golden checks that last property on every build.
 
 It is built for code compiled with `-fno-exceptions`: embedded firmware, game
-engines, and low-latency systems, where binary size and tail latency matter and
-the generated code has to be inspectable.
+engines, real-time media, trading, storage, and other systems where binary size,
+tail latency, and generated-code review matter.
 
-## The problem it solves
+## Background
 
 With exceptions disabled, returning an error from a deep call chain means
 threading a status value back through every function by hand. `longjmp` skips
 that boilerplate, but it also skips C++ destructors, which is undefined behavior.
-Exceptions keep cleanup correct but add a non-deterministic slow path and unwind
-tables that this audience often cannot afford.
+Exceptions keep cleanup correct, at the cost of unwind tables and a failure path
+whose latency is hard to bound.
 
 jmpxx removes the manual threading while keeping destructors correct and the
 cost bounded. The error value is stored out of band, so the functions in the
@@ -49,10 +49,10 @@ no call site.
 `transform`, and `transform_error`, for code that prefers a pipeline to a sequence of
 `JMPXX_TRY` statements.
 
-## What you get, and what proves it
+## Guarantees
 
-Every property below is enforced by a gate that fails the build when it breaks, and
-each gate is checked against a known-bad input so it cannot pass silently.
+Every property below has a build gate, and each gate has an inverted case that must
+fail on known-bad input.
 
 | Guarantee | Backed by |
 |-----------|-----------|
@@ -62,7 +62,9 @@ each gate is checked against a known-bad input so it cannot pass silently.
 | A produced failure cannot be discarded silently | a compile-fail tier at the type and at the propagation site |
 | Freestanding: no heap, no exceptions, no RTTI, no hosted header | a freestanding cell, an include-graph scan, and a no-allocation gate |
 | The experimental non-local escape has a bounded, measured sad path | an unwind sad-path distribution gate |
-| No undefined behavior on any exercised path | the address, undefined-behavior, and thread sanitizers and boundary-input fuzzing |
+| No undefined behavior on any exercised path | the address, undefined-behavior, thread, and memory sanitizers, static analysis, and boundary-input fuzzing |
+| Hardened contract violations fail fast when enabled and vanish when disabled | live fail-fast probes and optimized codegen absence checks |
+| The adversarial suite reaches the portable surface it claims to harden | source mutation testing, region and branch coverage floors, and a model-based lifecycle tier |
 | The transport layout is frozen within a major version | an ABI layout-descriptor gate |
 | Every documented claim maps to a runnable artifact | a doc-claim tier, and a comparison that states where jmpxx loses |
 
@@ -111,7 +113,7 @@ async runtime, not a logging framework, and not a drop-in `longjmp`.
 | `packaging/` | the integration-channel metadata and the amalgamation generator |
 | `goldens/` | the committed codegen and ABI-layout goldens |
 
-## How performance claims are backed
+## Benchmarks
 
 Every statement about size, speed, or generated code is measured and gated in
 CI, and a regression fails the build. The `jmpxx-verify` tool compiles a fixture,
@@ -123,7 +125,7 @@ the instructions each executes, deterministically. [docs/comparison.md](docs/com
 states where jmpxx wins and where it does not. Claims without a backing artifact are
 not made.
 
-## The companion check set
+## jmpxx-lint
 
 `jmpxx-lint` is an out-of-tree Clang tool that enforces the usage discipline in
 consumer code: it flags a discarded failure, a value taken through a narrow accessor
@@ -134,7 +136,7 @@ It is a developer tool, never a runtime or include dependency.
 
 [docs/](docs/README.md) holds the guides, the API reference for each capability, the
 performance comparison, and the reference for the verification and lint tooling.
-[Why this audience disables exceptions](docs/why-no-exceptions.md) is the orientation,
+[Why exceptions get disabled](docs/why-no-exceptions.md) is the orientation,
 the [cookbook](docs/cookbook.md) is task-oriented recipes, and there are migration
 guides from [std::expected](docs/migration/from-expected.md),
 [std::error_code](docs/migration/from-error-code.md), and
@@ -146,7 +148,7 @@ jmpxx through `find_package` alongside two third-party libraries, and the
 
 ## Versioning and stability
 
-jmpxx follows semantic versioning. While the project is at 0.x the public surface may
+jmpxx follows semantic versioning. While jmpxx is at 0.x the public surface may
 change between minor versions, so `find_package(jmpxx 0.1)` accepts a 0.1.x release and
 rejects 0.2.0. The observable layout of the transport under a fixed policy is held
 frozen from 0.1.0 by the ABI gate, with the experimental unwind arm exempt until it

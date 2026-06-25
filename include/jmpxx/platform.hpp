@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
-// The platform abstraction: the engine's single boundary for target-specific and
+// Platform abstraction: the library's single boundary for target-specific and
 // ABI-specific facts and constructs. Detection lives in platform/detect.hpp, the
 // fenced fail-fast in platform/trap.hpp, and the optional trace capture in
-// platform/trace.hpp; this umbrella exposes the unit's caller-facing surface and
-// the small queries a tool or a consumer uses to report which target it is on.
-// Every platform-specific construct in the engine resides under this unit (or the
+// platform/trace.hpp; this umbrella exposes the small caller-facing target queries.
+// Every platform-specific construct in the library resides under this unit (or the
 // later, separately fenced unwind arm), which the platform-fence scan enforces.
 //
 // It pulls in only the freestanding detection and trap headers, so including it

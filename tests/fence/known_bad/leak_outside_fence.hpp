@@ -2,7 +2,7 @@
 // Known-bad fixture for the platform-fence scan's self-test. This header sits
 // outside the fenced platform/ and unwind/ directories and reads a raw
 // operating-system macro, the exact leak the scan exists to catch. If the scan
-// passes this, it has no teeth.
+// passes this, it would miss the leak it exists to catch.
 #ifndef JMPXX_TEST_LEAK_OUTSIDE_FENCE_HPP
 #define JMPXX_TEST_LEAK_OUTSIDE_FENCE_HPP
 #if defined(_WIN32)

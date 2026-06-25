@@ -57,7 +57,7 @@ if (!r) jmpxx::diagnostic::print(r.error(), stderr);
 Runnable: [examples/diagnostics.cpp](../examples/diagnostics.cpp). Reference:
 [diagnostics.md](reference/diagnostics.md).
 
-## Adopt jmpxx at a seam with another library
+## Adopt jmpxx at a library boundary
 
 The bridges convert to and from `std::expected` and `std::error_code` without loss, and
 the adapters turn another library's absent value into a failure in one call.

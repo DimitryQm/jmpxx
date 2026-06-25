@@ -8,8 +8,8 @@
 // including the lossy case of recovering a foreign category, are in
 // docs/reference/interop.md.
 //
-// This is a hosted extension: <system_error> is outside the freestanding subset, so this
-// header is never reached from jmpxx/core.hpp.
+// Hosted extension: <system_error> is outside the freestanding subset, so this header is
+// never reached from jmpxx/core.hpp.
 //
 // Category identity caveat: a std::error_category is identified by the address of its
 // singleton. The jmpxx categories below are held in one process-wide table, so within a

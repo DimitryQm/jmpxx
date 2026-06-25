@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # The std::expected bridge preserves the freestanding property: including it adds no
 # non-freestanding dependency to the minimal core, and the bridge itself builds and
-# runs in a freestanding, no-exceptions, no-RTTI configuration. This run proves that
+# runs in a freestanding, no-exceptions, no-RTTI configuration. This run checks that
 # property. <expected> became freestanding
 # in C++26 but compiles freestanding on the supported toolchains today, so the
 # fixture is built at C++23, pinned to the one libstdc++ that honors -ffreestanding.

@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 # Build a diagnostic-layer source with a given sanitizer and the layer on, then run
 # it. Used for the thread sanitizer over concurrent rich failures and the address
-# sanitizer over landing-scope exit, so the out-of-band store is proven race-free
-# and leak-free rather than asserted so.
+# sanitizer over landing-scope exit, checking the out-of-band store for races and
+# leaks rather than asserting those properties in prose.
 set -euo pipefail
 CXX="${1:?compiler}"; INC="${2:?include dir}"; OUT="${3:?output dir}"
 SAN="${4:?sanitizer}"; SRC="${5:?source}"

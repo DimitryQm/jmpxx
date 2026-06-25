@@ -15,7 +15,7 @@ you prefer to stay anonymous.
 ## In scope
 
 A defect in jmpxx that introduces undefined behavior, a memory error, or an
-unchecked overflow into a program that uses the documented API as documented.
+unchecked overflow into a program that uses the documented API correctly.
 
 jmpxx is written to keep memory in bounds, to check overflowing arithmetic, to
 avoid undefined behavior (the tests run under AddressSanitizer and

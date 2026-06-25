@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// A deliberately slowed jmpxx kernel that exposes the perf gate's teeth. It runs the same
+// A deliberately slowed jmpxx kernel for the perf gate's inverted self-test. It runs the same
 // chain as kernel_jmpxx.cpp and then does extra work on the result, so it is measurably
 // slower than the hand-written baseline. The perf gate bounds the jmpxx-to-baseline ratio,
 // and swapping this kernel in drives the ratio past the bound, which the gate must reject.
-// A gate that passed a slowed kernel would pass a real performance regression, so this is the
-// known-bad input that proves the perf gate is not vacuous, the discipline the codegen and
-// size gates already hold.
+// A gate that passed a slowed kernel would pass a real performance regression, so this
+// known-bad input checks the perf gate's negative path, the same discipline the codegen
+// and size gates already hold.
 #include "spec.hpp"
 
 #include <jmpxx/core.hpp>

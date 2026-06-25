@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // The jmpxx kernel: the depth-8 chain expressed with result<int, error> and the
-// single-construct JMPXX_TRY propagation. This is the translation unit the size and
-// compile-cost gates weigh against the hand-written baseline, and the function the
-// runtime benchmark times against every incumbent.
+// single-construct JMPXX_TRY propagation. The size and compile-cost gates weigh this
+// translation unit against the hand-written baseline, and the runtime benchmark times
+// this function against every incumbent.
 #include "spec.hpp"
 
 #include <jmpxx/core.hpp>

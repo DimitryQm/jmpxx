@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 // The experimental, opt-in non-local unwind arm. A failure ejected deep in a recursion
 // returns to a single landing while the platform unwinder runs every destructor on the
-// path, so the intermediate frames carry no propagation construct. This is the closest
-// standard-C++ approach to a non-local jump that still preserves RAII.
+// path, so the intermediate frames carry no propagation construct.
 //
 // The arm is not the default. It requires unwind cleanup tables, so this translation
 // unit is built with exceptions enabled, unlike the portable, exception-free core. Reach
 // it only by including jmpxx/unwind.hpp. The portable result and JMPXX_TRY remain the
-// right choice for the exception-free niche; see docs/reference/unwind.md.
+// right choice for strict exception-free code; see docs/reference/unwind.md.
 #include <jmpxx/core.hpp>
 #include <jmpxx/unwind.hpp>
 

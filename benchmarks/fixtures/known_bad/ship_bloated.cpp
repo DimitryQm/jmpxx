@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-// A deliberately bloated gate fixture that exposes the size-delta gate's teeth. It is
+// A deliberately bloated gate fixture for the size-delta gate's inverted self-test. It is
 // ship_jmpxx.cpp plus extra arithmetic the hand-written baseline never does, so its object is
 // materially larger and the delta goes positive past a zero budget. A gate that passed this
-// would pass a real size regression, so this is the known-bad input that proves the gate is not
-// vacuous, the same discipline the codegen gate's spilling fixture enforces.
+// would pass a real size regression, so this known-bad input checks the negative path, the
+// same discipline the codegen gate's spilling fixture enforces.
 #include "../../kernels/spec.hpp"
 
 #include <jmpxx/core.hpp>

@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Behavioral tier for the dual-personality model, compiled with the diagnostic
-// layer on. It proves the rich policy captures a failure's origin and the causal
-// chain it accumulates as it propagates, that a landing scope bounds the lifetime
-// of that context, that a failure produced before main drives the layer safely,
-// that the type-erased policy reads at a boundary without naming the originating
-// category, and that the rich error decays to the minimal error losslessly. Each
-// check returns a distinct nonzero code so a failure names itself.
+// layer on. It checks origin capture, causal hops, landing-scoped lifetime,
+// before-main initialization, type-erased boundary reads, and lossless decay from
+// rich_error to the minimal error. Each check returns a distinct nonzero code so a
+// failure names itself.
 #include "jmpxx/core.hpp"
 #include "jmpxx/diagnostics.hpp"
 #include "jmpxx/erased.hpp"
@@ -31,9 +29,9 @@ result<int, rich_error> w5(int x) { JMPXX_TRY(v, w4(x)); return v + 1; }
 result<int, rich_error> w6(int x) { JMPXX_TRY(v, w5(x)); return v + 1; }
 result<int, rich_error> chain(int x) { JMPXX_TRY(v, w6(x)); return v + 1; }
 
-// A failure produced during dynamic initialization, before main, to prove the
-// thread-local store initializes safely on first touch with no init-order
-// dependency. The captured chain depth is recorded for main to check.
+// A failure produced during dynamic initialization, before main. The captured chain
+// lets main check that the thread-local store initializes safely on first touch with no
+// init-order dependency.
 struct BeforeMain {
   int chain_len = -1;
   bool origin_ok = false;

@@ -4,7 +4,7 @@
 // touches a throwing operation: the expected bridge reads through operator* and
 // error() and never std::expected::value(). The exception bridge is absent here by
 // construction, the configuration this cell exists to check, and the static
-// assertion below proves the header declared nothing rather than failing to build.
+// assertion below checks that the header declared nothing rather than failing to build.
 // The std::expected checks are guarded on JMPXX_INTEROP_HAS_EXPECTED so the cell
 // also builds where <expected> is not provided.
 #include "jmpxx/core.hpp"

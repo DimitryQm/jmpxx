@@ -1,8 +1,8 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Contributing to jmpxx
 
-Thanks for your interest in jmpxx. This document explains how to build the
-project, run its checks, and the conventions a change should follow.
+Use this guide to build jmpxx, run its checks, and keep a change inside the
+project's conventions.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ ctest --preset dev
 ```
 
 Each test tier can also be run on its own. The `jmpxx-verify` tool exposes every
-observable engine capability and every gate; pass `--format=json` for structured
+observable library capability and every gate; pass `--format=json` for structured
 output.
 
 ## Conventions

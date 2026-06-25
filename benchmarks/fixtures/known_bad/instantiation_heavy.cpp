@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-// A deliberately instantiation-heavy fixture that exposes the compile-cost gate's
-// teeth. It instantiates the transport and the propagation machinery over a few
+// A deliberately instantiation-heavy fixture for the compile-cost gate's inverted
+// self-test. It instantiates the transport and the propagation machinery over a few
 // hundred distinct value types, work the hand-written baseline never does, so its
 // translation time is far above the baseline's and the ratio exceeds any sane budget.
-// If the gate passed this fixture it would pass a real compile-time blowup, so this is
-// the known-bad input that proves the gate is not vacuous.
+// If the gate passed this fixture it would pass a real compile-time blowup, so this
+// known-bad input checks the negative path.
 #include "../../kernels/spec.hpp"
 
 #include <jmpxx/core.hpp>

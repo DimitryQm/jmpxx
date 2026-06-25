@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: MIT -->
-# Why this audience disables exceptions
+# Why exceptions get disabled
 
 A large part of the C++ world builds with `-fno-exceptions`. Embedded firmware, game
 engines, robotics, real-time media, trading systems, simulation engines, networking and
@@ -9,7 +9,7 @@ than taste. Those reasons are what jmpxx is built for.
 
 ## The costs they are avoiding
 
-Exceptions impose three costs this audience cannot always pay.
+Exceptions impose three costs these systems cannot always pay.
 
 The sad path is not deterministic. Throwing drives the unwinder, which searches for a
 handler frame by frame and runs each frame's cleanup. The time that takes depends on how
@@ -20,8 +20,8 @@ whose cost it cannot state.
 
 The unwinder needs tables. Exceptions require unwind tables in the binary so the runtime
 can walk the stack. On a target counting kilobytes, a microcontroller or a binary shipped
-to millions of devices, those tables are size the project does not have to spend, which
-is why the toolchain is told to omit them.
+to millions of devices, those tables are size the system does not have to spend, which is
+why the toolchain is told to omit them.
 
 The generated code has to be inspectable. Engineers in these domains read the assembly
 their code produces and budget for it. A mechanism whose cost they cannot see in the
@@ -33,26 +33,24 @@ With exceptions off, a failure deep in a call chain is returned by hand. Every f
 on the path grows a status return or an out-parameter, every caller writes
 `if (failed) return the_failure;`, and the error type threads through functions that have
 nothing to do with the error except passing it along. It is correct and predictable, and
-it is verbose and easy to get wrong: a dropped status, a forgotten check, an error type
+it is verbose and fragile: a dropped status, a forgotten check, an error type
 widened through a dozen signatures that never look at it.
 
 ## Where jmpxx fits
 
-jmpxx removes the manual threading while keeping the properties the audience disabled
-exceptions to get. A failure returns through the chain as an ordinary value, so the sad
-path is a branch with a cost you can read, not an unwinder walk. The error travels out of
-band, so the functions in the middle of the chain do not grow an error type in their
-signatures. Destructors still run, because the value returns normally through each frame.
-And the cost is not asserted, it is measured: the happy path generates the same machine
-code as a hand-written branch on a status flag, proven by a committed codegen golden and
-a zero-byte size delta, and a regression fails the build. See
-[comparison.md](comparison.md) for the numbers and where jmpxx does not win.
+jmpxx removes the manual threading while keeping the properties no-exceptions code
+depends on. A failure returns through the chain as an ordinary value, so the sad path is a
+branch with a cost you can read, not an unwinder walk. The error travels out of band, so
+the functions in the middle of the chain do not grow an error type in their signatures.
+Destructors still run, because the value returns normally through each frame.
+The cost is measured rather than asserted; see [comparison.md](comparison.md) for the
+numbers, the gates behind them, and where jmpxx does not win.
 
 For code that can afford unwind tables and wants the intermediate frames to carry no
 propagation construct at all, the experimental [unwind arm](reference/unwind.md) offers
 the closest standard-C++ approach to a non-local jump that still runs destructors, with a
 sad-path cost it measures rather than hides. It is opt-in and never the default. The
-portable surface above is the right choice for the strict no-exceptions niche.
+portable surface above is the right choice for strict no-exceptions code.
 
 ## Not a replacement for exceptions everywhere
 

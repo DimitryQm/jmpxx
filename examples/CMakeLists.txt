@@ -18,7 +18,7 @@ function(jmpxx_example name std)
   endif()
 endfunction()
 
-# Portable, exception-free examples in the niche configuration. reflection uses the
+# Portable, exception-free examples in the strict configuration. reflection uses the
 # hand-written fallback on a C++20 toolchain and the reflection path on a C++26 one.
 set(JMPXX_EX_NICHE)
 if(NOT MSVC)

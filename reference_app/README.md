@@ -15,16 +15,18 @@ with [toml++](https://github.com/marzer/tomlplusplus) in that library's no-excep
 mode, bridging the `toml::parse_result` into a jmpxx failure at the point where
 parsing happens.
 
-## One source, two policies
+## One source, three builds
 
-The `[server]` pipeline is built twice from the same source. `config_validate_minimal`
-uses the minimal error policy; `config_validate_rich` defines `APP_POLICY_RICH` and
-turns the diagnostic layer on. The only difference between the two is the build flag:
-every call site is identical source, selected through the `app::error` alias in
-`app_policy.hpp`. On a deep validation failure the rich build reports where the
-failure began and the path it propagated, while the minimal build reports only the
-code and domain. Compiled for release the two generate the same code, so the rich
-policy costs nothing there.
+The `[server]` pipeline is built three times from the same source.
+`config_validate_minimal` uses the minimal error policy, `config_validate_rich`
+defines `APP_POLICY_RICH` and turns the diagnostic layer on, and
+`config_validate_hardened` adds extensive hardening and trace capture. The only
+difference is the build flag: every call site is identical source, selected through
+the `app::error` alias in `app_policy.hpp`. On a deep validation failure the rich
+builds report where the failure began and the path it propagated, while the minimal
+build reports only the code and domain. The hardened build checks that diagnostics,
+stack traces, type-erased boundaries, and the bridge code still compose under the
+strict portable hardening mode.
 
 The `[limits]` section is validated by a separate component that reports type-erased
 errors from its own domain. `main` reads the domain name, message, and value at that
@@ -35,8 +37,8 @@ The `[policy]` section holds an access policy as JSON, parsed by
 [glaze](https://github.com/stephenberry/glaze), a third-party library whose read API
 returns `std::expected`. The expected interop bridge adopts that result into a jmpxx
 result carrying glaze's own error type, so the program speaks the standard expected
-vocabulary at this seam while propagating the failure the jmpxx way. The toml++ field
-and parse boundaries elsewhere use the `from_optional` and `from_condition` adapters
+vocabulary at this boundary while propagating the failure the jmpxx way. The toml++
+field and parse boundaries elsewhere use the `from_optional` and `from_condition` adapters
 rather than a hand-written check at each site. Both libraries are essential: remove
 jmpxx and the result types, propagation, adapters, and bridge are gone; remove toml++
 and there is nothing to read; remove glaze and there is no policy to parse.
@@ -60,9 +62,6 @@ toml++ is fetched automatically with FetchContent.
 ```sh
 ./build/config_validate_minimal configs/valid.toml          # prints the validated config
 ./build/config_validate_rich    configs/missing_host.toml   # reports the failure with its origin and chain
+./build/config_validate_hardened configs/missing_host.toml   # same app under extensive hardening
 ./build/config_validate_rich    configs/invalid_limits.toml # reports the type-erased boundary error
 ```
-
-Both jmpxx and toml++ are essential here: remove jmpxx and the return types, the
-propagation, and the type-erased boundary are gone, remove toml++ and there is
-nothing to parse.

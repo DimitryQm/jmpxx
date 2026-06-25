@@ -3,8 +3,8 @@
 # Gate the single-header amalgamations. First regenerate them from the modular headers
 # and diff against the committed copies, so a stale single header fails. Then build a
 # consumer against each: the core header under -ffreestanding -fno-exceptions -fno-rtti,
-# to prove it stays freestanding-pure, and the full header hosted, to prove it is
-# self-contained across the hosted surface. Mirrors the other compile-and-run checks.
+# checking that it stays freestanding-pure, and the full header hosted, checking that
+# it is self-contained across the hosted surface. Mirrors the other compile-and-run checks.
 set -euo pipefail
 ROOT="${1:?repo root}"
 CXX="${2:?c++ compiler}"
@@ -31,7 +31,7 @@ done
 echo "amalgamation OK: single headers match the modular source"
 
 # Core consumer, freestanding. The core single header must pull in nothing outside the
-# freestanding subset, which a freestanding compile proves.
+# freestanding subset, checked by a freestanding compile.
 cat > "$TMP/core_consumer.cpp" <<'EOF'
 #include <jmpxx-core.hpp>
 using namespace jmpxx;

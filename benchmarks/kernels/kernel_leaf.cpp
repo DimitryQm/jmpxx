@@ -4,7 +4,7 @@
 // gathered at the landing, independent of call depth, the same out-of-band shape jmpxx uses
 // for its diagnostic context. Propagation is BOOST_LEAF_AUTO and the landing is
 // try_handle_all with a type-matched handler and a catch-all, which is LEAF's idiom and needs
-// no language try/catch, so it compiles in the exception-free niche. This kernel is the one to
+// no language try/catch, so it compiles with exceptions disabled. This kernel is the one to
 // watch on the heavy-error, high-failure cell, where an out-of-band design keeps the payload
 // off the return path that in-band result types copy through every frame.
 #include "spec.hpp"

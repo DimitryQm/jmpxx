@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // The experimental non-local unwind arm: per-ABI backend.
 //
-// This is the fenced home of every ABI-specific construct the arm uses. The
-// platform-fence scan permits target macros and platform headers here, under
-// jmpxx/unwind/, exactly as it permits them under jmpxx/platform/. Nothing on the
-// portable core path reaches this header; a consumer compiles it only by opting
-// into the arm through jmpxx/unwind.hpp.
+// Fenced home for the arm's ABI-specific constructs. The platform-fence scan permits
+// target macros and platform headers here, under jmpxx/unwind/, exactly as it permits
+// them under jmpxx/platform/. Nothing on the portable core path reaches this header; a
+// consumer compiles it only by opting into the arm through jmpxx/unwind.hpp.
 //
 // The arm drives the platform forced-unwind facility so a failure ejected deep in a
 // call chain returns to a registered landing while the unwinder runs every destructor
@@ -60,9 +59,9 @@
 
 // The setjmp-based backends resume the landing with a jump buffer planted in the
 // landing frame. The forced unwind runs the intermediate cleanups first; the longjmp
-// then discards only the already-cleaned region back to the landing. This is the
-// control transfer the platform thread-cancellation unwinder uses, so it is a
-// supported pattern rather than the bare longjmp the library otherwise forbids.
+// then discards only the already-cleaned region back to the landing. Platform
+// thread-cancellation unwinders use this control transfer; it is the supported pattern,
+// not the bare longjmp the library otherwise forbids.
 #if JMPXX_UNWIND_BACKEND_ITANIUM || JMPXX_UNWIND_BACKEND_SEH
 #include <csetjmp>
 #endif
@@ -128,7 +127,7 @@ struct never {
 
 // A non-local escape that an intervening catch-all swallowed without rethrowing never
 // reaches its landing. The arm turns that into a defined termination rather than a
-// silent mis-land, the same outcome the platform's own cancellation unwinder produces
+// silent wrong landing, the same outcome the platform's own cancellation unwinder produces
 // for a swallowed forced unwind.
 [[noreturn]] inline void report_swallowed_escape() {
   platform::fail_fast(
@@ -204,8 +203,7 @@ inline void escape_cleanup(_Unwind_Reason_Code, _Unwind_Exception*) noexcept {
 // than an allocation. It does not return at run time: it either longjmps into the
 // landing or, if the platform cannot unwind at all, fails fast.
 //
-// Two properties are required for correctness and easy to get wrong, each proven by a
-// destructor-count tier rather than assumed:
+// Two non-obvious correctness constraints are guarded by destructor-count tiers:
 //   * It must not be noexcept. It is the innermost frame the forced unwind processes,
 //     and an empty exception specification on the path terminates the unwind at that
 //     frame. The same constraint binds every frame between an eject and its landing.
@@ -278,9 +276,8 @@ namespace detail {
 
 // On native MSVC the landing plants a jump buffer and the eject resumes it. MSVC's
 // setjmp and longjmp participate in the structured-exception unwinder, so the longjmp
-// runs the C++ destructors of the frames between the eject and the landing. This is
-// the SEH analogue of the Itanium forced unwind, and the unwind-execution tier checks
-// it on MSVC.
+// runs the C++ destructors of the frames between the eject and the landing. This SEH
+// analogue of the Itanium forced unwind is checked by the unwind-execution tier on MSVC.
 [[noreturn]] inline void drive_unwind(carrier* car) {
   std::longjmp(car->buf, 1);
 }

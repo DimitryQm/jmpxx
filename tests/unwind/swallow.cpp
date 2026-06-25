@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// A swallowing catch-all on the escape path is never a silent mis-land. A
+// A swallowing catch-all on the escape path is never a silent wrong landing. A
 // non-cooperative catch(...) that does not rethrow is handled differently by different
-// C++ runtimes, and this fixture proves every outcome is safe. libstdc++ and libc++abi
+// C++ runtimes, and this fixture checks every safe outcome. libstdc++ and libc++abi
 // let the catch-all consume the escape, which the arm turns into a defined termination;
 // libcxxrt transits the catch-all so the escape reaches its landing. The one outcome the
 // arm must never produce is a silent loss, where the scope returns a value the program

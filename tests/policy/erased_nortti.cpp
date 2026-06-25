@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // No-RTTI cell. The type-erased policy reaches its domain descriptors through
 // virtual functions, which work with RTTI disabled because only typeid and
-// dynamic_cast need it. This file builds and runs the whole engine, including the
+// dynamic_cast need it. This file builds and runs the public policy surface, including the
 // erased policy's virtual dispatch and the rich policy, under -fno-rtti
 // -fno-exceptions, and returns nonzero from the first check that fails.
 #include "jmpxx/core.hpp"

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Unwind-execution tier: the experimental non-local unwind arm is proven by real
-// execution, not by inspection. Each check drives an escape and observes destructor
-// counts, the landing outcome, and handler transit. The fixtures use conditional
-// ejects and distinct frames so the chain is real at the optimization level the build
-// uses; the tier is built at -O2 in CMake, which is where a forced unwind that elides
-// cleanup landing pads or lands at the wrong frame is caught. A skipped or double-run
-// destructor here breaks RAII on the escape path, so the tier fails the build.
+// Unwind-execution tier for the experimental non-local unwind arm. Each check drives an
+// escape and observes destructor counts, the landing outcome, and handler transit. The
+// fixtures use conditional ejects and distinct frames so the chain is real at the
+// optimization level the build uses. CMake builds this tier at -O2, where a forced
+// unwind that elides cleanup landing pads or lands at the wrong frame is caught. A
+// skipped or double-run destructor here breaks RAII on the escape path, so the tier
+// fails the build.
 #include "jmpxx/unwind.hpp"
 #include "jmpxx/core.hpp"
 
@@ -28,8 +28,8 @@ void check(bool ok, const char* what) {
   }
 }
 
-// An instrumented guard: balanced construction and destruction prove no destructor was
-// skipped or double-run on the escape path.
+// An instrumented guard: balanced construction and destruction show whether a destructor
+// was skipped or double-run on the escape path.
 int g_ctor = 0, g_dtor = 0;
 struct Guard {
   int id;

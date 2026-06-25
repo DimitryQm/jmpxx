@@ -28,7 +28,7 @@ int outcome_chain(int x, int depth);
 int leaf_chain(int x, int depth);
 int tlexpected_chain(int x, int depth);
 
-// The deliberately slowed jmpxx kernel that gives the perf gate its teeth.
+// The deliberately slowed jmpxx kernel used by the perf gate's inverted self-test.
 int jmpxx_slow_chain(int x, int depth);
 
 }  // extern "C"

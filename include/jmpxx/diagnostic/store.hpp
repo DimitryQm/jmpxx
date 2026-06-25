@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
-// The out-of-band diagnostic store: a failure's origin and the causal chain it
-// accumulates live here, beside the in-flight failure rather than inside the transport,
-// so the transport stays narrow and intermediate frames never widen to carry context.
-// It is a per-thread, fixed-capacity arena, which makes it race-free and allocation-free,
-// and a function-local thread_local, which makes it safe when first touched during
-// dynamic initialization before main. The capacity bounds and the truncation-on-overflow
-// behavior are in docs/reference/diagnostics.md.
+// Out-of-band diagnostic store. A failure's origin and propagation chain live beside
+// the in-flight failure rather than inside the transport, so the transport stays
+// narrow and intermediate frames never widen to carry context. The arena is per-thread,
+// fixed-capacity, allocation-free, and initialized on first use; the exact bounds and
+// overflow behavior are in docs/reference/diagnostics.md.
 //
 // This header is part of the debug-only diagnostic layer. It is compiled only when
 // JMPXX_DIAGNOSTICS_ENABLED is on and is reached only through jmpxx/diagnostics.hpp.
@@ -58,9 +56,9 @@ class store {
 
  public:
   // Open a record for a newly created failure and return its handle. The handle is
-  // always unique even when the arena is full, in which case the record is dropped
-  // and find() will not resolve the handle, so the failure simply carries no context
-  // rather than corrupting another's.
+  // always unique even when the arena is full. On overflow the record is dropped and
+  // find() will not resolve the handle, so the failure carries no context rather than
+  // corrupting another record.
   std::uint32_t open(const std::source_location& origin) noexcept {
     std::uint32_t id = next_id_++;
     if (next_id_ == 0) next_id_ = 1;

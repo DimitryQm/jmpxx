@@ -10,7 +10,7 @@ and never on a default path: a program reaches it only by including `jmpxx/unwin
 
 The arm is not a replacement for the portable surface. The portable `result` and
 `JMPXX_TRY` are the exception-free, table-free default and remain the right choice for
-the embedded and low-latency niche. The arm is for code that can afford unwind cleanup
+strict embedded and low-latency code. The arm is for code that can afford unwind cleanup
 tables and wants the source-oblivious middle frames a deep recursion or a deep call chain
 would otherwise have to thread by hand.
 
@@ -58,7 +58,7 @@ transits the escape on libcxxrt, terminates the program on libc++abi, and on lib
 WebAssembly transits when it rethrows with the idiom
 `catch (const abi::__forced_unwind&) { throw; }` and otherwise consumes the escape, which
 the arm turns into a defined termination. The outcome is loud in every case, never a silent
-mis-land. Keep a catch-all off the escape path, or use a typed catch.
+wrong landing. Keep a catch-all off the escape path, or use a typed catch.
 
 A frame on the escape path marked `noexcept` terminates the unwind at that frame, because
 an empty exception specification is a barrier the forced unwind cannot cross. Functions on
@@ -94,7 +94,7 @@ the compiler's catch-all-and-rethrow clauses. Destructor counts, nesting, the pa
 boundary, and typed and cooperative catch-all transit all hold. Two guarantees differ. The
 escape is an ordinary catchable exception with no forced-unwind exemption, so a
 non-cooperative catch-all that swallows it is caught by the termination backstop rather
-than by the platform unwinder. The sad path is whatever the engine charges for a throw
+than by the platform unwinder. The sad path is whatever the WebAssembly engine charges for a throw
 rather than a library-bounded walk.
 
 On Windows the arm is reached two ways. A MinGW toolchain exposes the libgcc

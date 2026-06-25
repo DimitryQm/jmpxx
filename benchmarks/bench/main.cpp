@@ -4,7 +4,7 @@
 // failure-ratio sweep and a depth sweep, and reports each mechanism's per-call latency
 // distribution by median and high percentile, beside the delta against the hand-written
 // branch jmpxx claims to match. It also carries the perf gate: a relative bound on jmpxx's
-// latency against a co-measured hand-written baseline, with teeth from a deliberately slowed
+// latency against a co-measured hand-written baseline, with an inverted self-test from a deliberately slowed
 // kernel, and a callgrind mode that counts instructions deterministically.
 //
 // Measurement discipline follows the established practice for tiny operations. The kernel
@@ -217,8 +217,8 @@ int cmd_run(Fmt fmt, int epochs, long long target_ns, std::size_t pool) {
 }
 
 // Co-measure two mechanisms interleaved at the epoch level so a transient stall lands on
-// both and cancels in their ratio, the relative-bound discipline the project uses for a
-// timing gate that must not flake on a shared runner. Returns the two distributions.
+// both and cancels in their ratio, the relative-bound discipline used for timing gates
+// that must not flake on a shared runner. Returns the two distributions.
 std::pair<Dist, Dist> measure_pair(chain_fn fa, chain_fn fb, int depth,
                                    const std::vector<int>& in, int epochs, long long target_ns) {
   const std::size_t n = in.size();
@@ -249,9 +249,9 @@ std::pair<Dist, Dist> measure_pair(chain_fn fa, chain_fn fb, int depth,
 // gate: the perf gate. jmpxx and the hand-written baseline are co-measured on the happy path,
 // where zero overhead is the claim, and jmpxx's median is bounded to a multiple of the
 // baseline's. The bound is generous because the two should be within noise of each other; the
-// gate's job is to catch a real regression, not to police single-digit-percent jitter. It has
-// teeth: --slow swaps in the deliberately slowed kernel, whose median is far above the bound,
-// which fails the gate, proving it is not vacuous.
+// gate's job is to catch a real regression, not to police single-digit-percent jitter. The
+// --slow mode swaps in the deliberately slowed kernel, whose median is far above the bound,
+// so the gate's own negative path must fail.
 int cmd_gate(Fmt fmt, int epochs, long long target_ns, std::size_t pool, double bound, bool slow) {
   Report r(fmt, "bench.gate");
   std::vector<int> in = make_inputs(0.0, pool);  // happy path

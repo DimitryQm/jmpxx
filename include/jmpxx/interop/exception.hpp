@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Opt-in boundary between a propagated jmpxx failure and a thrown C++ exception.
 //
-// jmpxx is for code compiled with exceptions disabled, so this bridge is the seam
+// jmpxx is for code compiled with exceptions disabled, so this bridge is the boundary
 // where exception-free code must call into, or be called from, a component that
 // signals failure by throwing. value_or_throw turns a failure into a throw at the
 // point a region crosses into exception-based code, and catch_into_result runs a
@@ -14,7 +14,7 @@
 // std::exception, so a generic catch(const std::exception&) elsewhere still sees it.
 //
 // The whole bridge exists only where exceptions are enabled, which is the opposite
-// of the primary audience, so it is fenced behind JMPXX_HAS_EXCEPTIONS and is absent
+// of the primary no-exceptions use case, so it is fenced behind JMPXX_HAS_EXCEPTIONS and is absent
 // from a -fno-exceptions or freestanding build. Including it in such a build defines
 // JMPXX_INTEROP_HAS_EXCEPTION_BRIDGE to 0 and declares nothing, so a translation unit
 // can include it unconditionally and query the macro.

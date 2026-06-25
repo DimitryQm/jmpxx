@@ -7,7 +7,7 @@
 // where the throw drives the unwinder, and that is where the distribution is wide.
 //
 // This translation unit must be compiled with exceptions enabled even though the rest
-// of the suite is built in the exception-free niche, so the build gives it -fexceptions
+// of the suite is built with exceptions disabled, so the build gives it -fexceptions
 // while leaving every other kernel under -fno-exceptions. The thrown type never escapes
 // this unit; the entry catches it and returns a plain int.
 #include "spec.hpp"

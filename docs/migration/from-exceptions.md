@@ -2,13 +2,13 @@
 # Migrating from exceptions
 
 Moving a codebase off exceptions, or introducing an exception-free component into one
-that still throws, happens at a seam. jmpxx provides the boundary so the two styles
+that still throws, happens at a boundary. jmpxx provides that boundary so the two styles
 coexist while you convert, and so an exception-free region can call into, or be called
 from, code that throws.
 
 ## The boundary bridge
 
-The exception bridge exists only where exceptions are enabled, so it is the seam itself,
+The exception bridge exists only where exceptions are enabled, so it is the boundary itself,
 not the exception-free code on either side of it. `value_or_throw` turns a failure into a
 throw at the point an exception-free region hands a result to throwing code;
 `catch_into_result` runs a callable that may throw and converts the outcome back into a

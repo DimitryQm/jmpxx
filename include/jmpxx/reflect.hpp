@@ -10,9 +10,9 @@
 // surface and the results are identical and a program written against this layer
 // builds and behaves the same on a C++20 toolchain and a reflection-capable one.
 //
-// Nothing in the core requires this layer. It is a hosted extension reached only by
-// including this header, it depends only on the error representations it derives
-// metadata for, and the full core builds on a C++20 toolchain with this layer absent.
+// Nothing in the core requires this layer. It is reached only by including this header,
+// depends only on the error representations it derives metadata for, and leaves the
+// full core buildable on a C++20 toolchain with this layer absent.
 // The reflection path is selected by JMPXX_REFLECTION, which defaults to the standard
 // __cpp_lib_reflection feature test and can be forced on for a pre-standardization
 // toolchain that implements P2996 without yet advertising the macro.

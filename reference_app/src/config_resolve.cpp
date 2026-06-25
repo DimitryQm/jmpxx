@@ -7,7 +7,7 @@
 // carry no error-threading construct, and the resolver's state stays clean across the
 // escape so the next key still resolves.
 //
-// Unlike config_validate, which is built for the exception-free niche, this program is
+// Unlike config_validate, which is built with exceptions disabled, this program is
 // built with exception cleanup tables, because the arm runs destructors during a forced
 // unwind only where they are present. The program consumes jmpxx through find_package and
 // parses with toml++. Removing jmpxx removes the escape and the landing and nothing
@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
   resolve::resolver r(*values);
   int failures = 0;
   // Resolve every key in order. The resolver is reused across keys on purpose: a clean
-  // resolution after a failed one is the visible proof that the escape unwound the
-  // cycle-detection guards and left no residue, which a bare longjmp would not.
+  // resolution after a failed one shows that the escape unwound the cycle-detection
+  // guards and left no residue, which a bare longjmp would not.
   for (auto&& [key, node] : *values) {
     (void)node;
     std::string name(key.str());

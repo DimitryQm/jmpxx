@@ -286,30 +286,30 @@ class JMPXX_NODISCARD(
     return detail::move(err_);
   }
 
-  // Narrow access: the precondition is that the corresponding state holds. It
-  // is verified only in a hardened build; otherwise it is the caller's contract.
+  // Narrow access: the precondition is that the corresponding state holds. Fast
+  // hardening and above verify it; otherwise it is the caller's contract.
   constexpr decltype(auto) assume_value() & noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return (val_);
   }
   constexpr decltype(auto) assume_value() const& noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return (val_);
   }
   constexpr decltype(auto) assume_value() && noexcept {
-    if constexpr (JMPXX_HARDENED) require_value();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_value();
     if constexpr (!is_void) return detail::move(val_);
   }
   constexpr E& assume_error() & noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return err_;
   }
   constexpr const E& assume_error() const& noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return err_;
   }
   constexpr E&& assume_error() && noexcept {
-    if constexpr (JMPXX_HARDENED) require_error();
+    if constexpr (JMPXX_HARDENING_FAST_ENABLED) require_error();
     return detail::move(err_);
   }
 

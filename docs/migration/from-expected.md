@@ -5,7 +5,7 @@ A codebase already returning `std::expected<T, E>` adopts jmpxx with little chur
 because `result<T, E>` carries exactly the same thing, a value or the same error type
 `E`, and the conversion between them is lossless in both directions.
 
-## At a seam, without rewriting
+## At a boundary, without rewriting
 
 Convert at the boundary and keep the rest of the file as it is. `from_expected` adopts a
 function that returns `std::expected`, and `to_expected` hands a `result` back out:
@@ -46,7 +46,7 @@ JMPXX_TRY(value, step());
 
 For a trivially copyable `T` and `E`, `result<T, E>` is trivially copyable and returned
 in registers, where `std::expected`'s assignment operators make it non-trivial. The
-happy path then generates the same code as a hand-written branch, proven by the codegen
+happy path then generates the same code as a hand-written branch, verified by the codegen
 gate. A failure cannot be dropped without a compile-time diagnostic, which a bare
 `std::expected` does not enforce at the propagation site.
 

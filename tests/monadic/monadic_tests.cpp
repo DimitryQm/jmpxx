@@ -2,7 +2,7 @@
 // Monadic-ops tier: and_then, or_else, transform, and transform_error behave as
 // std::expected's do (P2505), across value and error states, a void value, chaining,
 // move-through, an error-type change, and constant evaluation. Compiled with
-// exceptions and RTTI off, the niche the library targets.
+// exceptions and RTTI off, the strict configuration the library targets.
 #include "jmpxx/core.hpp"
 #include "jmpxx/diagnostics.hpp"  // rich_error policy
 #include "jmpxx/erased.hpp"       // type-erased policy

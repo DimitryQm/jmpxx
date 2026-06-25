@@ -6,7 +6,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 # The harness uses the GCC and Clang inline-assembly optimization barrier and the noinline
-# attribute, so it is built on those compilers only; the MSVC cell is covered for the engine and
+# attribute, so it is built on those compilers only; the MSVC cell is covered for the library and
 # the unwind arm elsewhere and does not build the benchmark surface.
 if(MSVC)
   message(STATUS "jmpxx-bench: skipped on MSVC")
@@ -77,8 +77,9 @@ target_compile_definitions(jmpxx-bench PRIVATE
   JXB_HAVE_TLEXPECTED=${JXB_TLEXPECTED})
 
 # Optimized, the realistic configuration a performance claim must be made in. The suite is the
-# exception-free niche, so it builds -fno-exceptions -fno-rtti; the exceptions kernel is the one
-# translation unit that needs the tables and RTTI, so it overrides those two flags for itself.
+# strict exception-free configuration, so it builds -fno-exceptions -fno-rtti; the
+# exceptions kernel is the one translation unit that needs the tables and RTTI, so it
+# overrides those two flags for itself.
 if(NOT MSVC)
   target_compile_options(jmpxx-bench PRIVATE -O2)
   target_compile_options(jmpxx-bench PRIVATE -fno-exceptions -fno-rtti)
@@ -89,7 +90,7 @@ endif()
 message(STATUS "jmpxx-bench incumbents: outcome=${JXB_OUTCOME} leaf=${JXB_LEAF} tl_expected=${JXB_TLEXPECTED}")
 
 # Bench tests, registered when the parent build enabled testing. The perf gate runs with a
-# small epoch budget so it is quick; its teeth run swaps in the slowed kernel and must fail.
+# small epoch budget so it is quick; its inverted run swaps in the slowed kernel and must fail.
 if(JMPXX_BENCH_TESTS)
   add_test(NAME bench.run_smoke COMMAND jmpxx-bench run --epochs 8 --epoch-ns 50000)
   set_tests_properties(bench.run_smoke PROPERTIES TIMEOUT 180)
@@ -100,8 +101,8 @@ if(JMPXX_BENCH_TESTS)
   set_tests_properties(bench.gate.teeth PROPERTIES WILL_FAIL TRUE TIMEOUT 120)
 
   # The deterministic instruction-count gate, when valgrind is available. The script counts
-  # jmpxx and hand-written instructions under callgrind and bounds their ratio, and a teeth run
-  # inside the script proves the slowed kernel trips it.
+  # jmpxx and hand-written instructions under callgrind and bounds their ratio; an inverted run
+  # inside the script checks that the slowed kernel trips it.
   find_program(JXB_VALGRIND valgrind)
   if(JXB_VALGRIND AND UNIX)
     add_test(NAME bench.callgrind_ir COMMAND bash

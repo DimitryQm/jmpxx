@@ -42,7 +42,7 @@ using namespace jmpxx;
 using jv::Fmt;
 using jv::Report;
 
-// Allocation counting. The global operator new is replaced so a probe can prove
+// Allocation counting. The global operator new is replaced so a probe can check that
 // a path performs no heap allocation. Counting is off except inside the measured
 // region, so the harness's own allocations are not counted.
 namespace {
@@ -84,8 +84,8 @@ result<int, error> chain8(int x) { JMPXX_TRY(v, w6(x)); return v + 1; }
 
 // One source body, parameterized by the error policy and naming no error type. The
 // policies and diagnostics probes instantiate it for each policy, and the alloc
-// probe runs it for the rich and erased policies, so a single chain proves that the
-// policy is the only thing that changes across the representations.
+// probe runs it for the rich and erased policies, so a single chain keeps the policy
+// as the only thing that changes across the representations.
 template <class E>
 result<int, E> pol_leaf(int x) {
   if (x < 0) return fail(E(42, 7));
@@ -144,7 +144,7 @@ int probe_size(Fmt fmt) {
 }
 
 // alloc: construction, inspection, extraction, assignment, and propagation over
-// trivial payloads perform no heap allocation. The gate has teeth: --inject-alloc
+// trivial payloads perform no heap allocation. The --inject-alloc self-test
 // performs one heap allocation inside the measured region, which the hooked
 // allocator must observe, so the gate fails. Without it the gate could pass while
 // never exercising an allocating path.
@@ -484,8 +484,8 @@ Normalized normalize(const std::string& asm_text, const std::string& symbol,
 // first appearance. Two functions that differ only in label numbering, for example
 // because one is emitted after the other in the same translation unit, then compare
 // equal. Label names carry no semantics; the control flow they encode is preserved
-// because every occurrence of one name maps to the same canonical token. This is
-// applied only when diffing two functions against each other, never against a
+// because every occurrence of one name maps to the same canonical token. Apply this
+// only when diffing two functions against each other, never against a
 // committed golden, so the golden tier keeps comparing exact text.
 std::string canon_labels(const std::string& body) {
   auto id = [](char c) {
@@ -595,7 +595,7 @@ int probe_codegen(Fmt fmt, const std::vector<std::string>& args) {
   return r.finish();
 }
 
-// release-diff: the headline proof of the dual-personality promise. Two functions
+// release-diff: the release check for the dual-personality promise. Two functions
 // in one fixture perform the same operation, one under the minimal policy and one
 // under the rich policy. Compiled in a release configuration the diagnostic layer
 // is gone, so the two must generate identical code. The gate compares their
@@ -736,12 +736,12 @@ ObjSize measure_obj(const std::string& obj, const std::string& size_tool) {
 // size-delta: the binary-size cost the library adds over the hand-written baseline,
 // measured deterministically. A fixture that uses jmpxx and a baseline that does the
 // same work by hand are each compiled to an object file in the release, no-exceptions,
-// no-RTTI configuration the niche ships, and the difference in section bytes is the
+// no-RTTI strict configuration, and the difference in section bytes is the
 // library's size tax. For the zero-overhead kernel the delta is zero. The gate fails
-// when a delta exceeds its committed budget,
-// and it has teeth: a deliberately bloated fixture exceeds the budget and fails. The
-// measurement is bit-for-bit reproducible for a fixed compiler and flags, so the gate
-// never flakes, unlike a wall-clock measurement.
+// when a delta exceeds its committed budget. A deliberately bloated fixture exceeds
+// the budget and fails as the gate's inverted self-test. The measurement is
+// bit-for-bit reproducible for a fixed compiler and flags, so the gate never flakes,
+// unlike a wall-clock measurement.
 int probe_size_delta(Fmt fmt, const std::vector<std::string>& args) {
   std::string fixture, baseline, arch = "x86_64";
   std::string size_tool = "size";
@@ -772,7 +772,7 @@ int probe_size_delta(Fmt fmt, const std::vector<std::string>& args) {
   }
   r.str("compiler", cxx);
 
-  // The ship configuration for the niche: release (NDEBUG drops the diagnostic
+  // The strict release configuration: release (NDEBUG drops the diagnostic
   // layer), exceptions and RTTI off, identical for both objects so the delta is the
   // library's contribution and nothing else.
   const std::string flags =
@@ -867,11 +867,12 @@ long long count_instantiations(const std::string& cxx, const std::string& flags,
 //
 // The gate is the deterministic template-instantiation count, not wall-clock time,
 // because the count does not vary with machine load and so the gate never flakes,
-// which is the discipline the project holds for every gate. A fixture's instantiation
-// count is bounded by --max-instantiations. The gate has teeth: an instantiation-heavy
+// matching the discipline used for every gate. A fixture's instantiation
+// count is bounded by --max-instantiations. An instantiation-heavy
 // fixture instantiates the transport over hundreds of distinct types, far past the
-// bound. The wall-clock ratio is reported alongside as the human-facing tax but is not
-// the gate, since it is the noisy measure; each fixture is compiled --runs times
+// bound, and must fail as the gate's inverted self-test. The wall-clock ratio is
+// reported alongside as the visible cost but is not the gate, since it is the
+// noisy measure; each fixture is compiled --runs times
 // interleaved with the baseline and the minimum is taken, the run least perturbed by
 // scheduling noise.
 int probe_compile_cost(Fmt fmt, const std::vector<std::string>& args) {
@@ -956,11 +957,11 @@ int probe_compile_cost(Fmt fmt, const std::vector<std::string>& args) {
 
 // abi-layout: the observable memory layout of the public types, the ABI promise for
 // a header library that ships no object. The probe compiles the layout-descriptor
-// fixture in the configuration the niche ships, release with exceptions and RTTI
-// disabled, runs it to emit the layout of every frozen type, and diffs that against a
-// committed golden. A divergence is an unversioned layout change and fails the build,
-// the same discipline the codegen golden holds for generated code. The gate has teeth:
-// pointed at a golden that claims a different layout it fails, which is the
+// fixture in the strict release configuration, with exceptions and RTTI disabled. It
+// runs that descriptor to emit the layout of every frozen type and diffs the result
+// against a committed golden. A divergence is an unversioned layout change and fails
+// the build, the same discipline the codegen golden holds for generated code. Pointed
+// at a golden that claims a different layout, it fails, which is the
 // unversioned-change case. --update rewrites the golden after a justified, version-bumped
 // change. The frozen set and the rationale are in docs/reference/abi.md.
 int probe_abi_layout(Fmt fmt, const std::vector<std::string>& args) {
@@ -1149,7 +1150,7 @@ int probe_reflect(Fmt fmt) {
 
 // unwind: drive the experimental non-local unwind arm and report what only execution
 // can show: the destructor count over a deep escape and the sad-path latency
-// distribution. The destructor count proves the arm runs every cleanup on the path;
+// distribution. The destructor count shows the arm runs every cleanup on the path;
 // the distribution, reported by median and high percentiles, is the evidence behind
 // the bounded-sad-path claim. A C++ throw at the same depth is measured alongside so
 // the comparison is measured rather than asserted: the arm's sad path is bounded, not
@@ -1160,9 +1161,9 @@ int probe_reflect(Fmt fmt) {
 // percentile-to-median ratio flakes on a shared runner, where a rare scheduling stall
 // inflates the high percentile of any operation. Measuring both against the same runner
 // cancels that noise: a stall that lengthens the arm's tail lengthens the throw's tail
-// too, so the ratio between them stays bounded. The gate has teeth: --inject-jitter makes
+// too, so the ratio between them stays bounded. The --inject-jitter self-test makes
 // the arm's cleanup path, and not the throw's, non-deterministic, which drives the ratio
-// past the bound and fails the gate, proving the gate is not vacuous.
+// past the bound and fails the gate's own negative path.
 namespace uw {
 
 volatile long long g_sink = 0;
@@ -1194,8 +1195,8 @@ struct GuardT {
 
 // The escape chains are template recursions, so the depth is a compile-time bound that
 // expands to distinct frames rather than a runtime self-recursion the compiler cannot
-// prove terminates. The forced-unwind chain carries the jittered guard; the C++ throw
-// chain, the baseline, carries the plain one.
+// fold into a single terminating path. The forced-unwind chain carries the jittered
+// guard; the C++ throw chain, the baseline, carries the plain one.
 template <int D>
 int fu_chain() {
   GuardT<true> g{D};
@@ -1265,7 +1266,7 @@ std::pair<dist, dist> measure_pair(A fa, B fb, int iters) {
   return {summarize(na), summarize(nb)};
 }
 
-// Count constructions and destructions over a deep escape, to prove the arm runs every
+// Count constructions and destructions over a deep escape, checking that the arm runs every
 // cleanup exactly once. Kept apart from the timed guard so timing carries no counters.
 long long c_ctor = 0, c_dtor = 0;
 struct Counted {
@@ -1289,7 +1290,7 @@ int probe_unwind(Fmt fmt, const std::vector<std::string>& args) {
   // multiple of a C++ throw's at the same depth. It is set generously above the observed
   // ratio (near 1.1 to 1.9 across compilers) so ordinary scheduling noise on a shared
   // runner does not flake it, while still well below the ratio an injected
-  // non-deterministic cleanup produces, which gives the gate teeth.
+  // non-deterministic cleanup produces, so the inverted self-test still fails.
   double bound = 3.0;
   for (std::size_t i = 0; i < args.size(); ++i) {
     const std::string& a = args[i];
