@@ -3,9 +3,9 @@
 # registry: vcpkg install jmpxx --overlay-ports=<path-to>/packaging/vcpkg
 #
 # jmpxx is header-only, so the port installs the headers and the CMake package config
-# and removes the empty debug and library trees. SHA512 is the hash of the GitHub release
-# tarball for the tag named by VERSION; recompute it whenever VERSION changes in
-# vcpkg.json. vcpkg also prints the expected value on a mismatched install attempt.
+# and removes the empty debug and library trees. SHA512 is the hash of the GitHub
+# release tarball for the tag named by VERSION; recompute it whenever VERSION changes
+# in vcpkg.json. vcpkg also prints the expected value on a mismatched install attempt.
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO DimitryQm/jmpxx
